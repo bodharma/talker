@@ -11,15 +11,18 @@
             <div>
                 <strong>{{ session.created_at.strftime('%B %d, %Y at %H:%M') }}</strong>
                 <br><small style="color:var(--text-muted);">
-                    {{ session.screenings | length }} screening(s) — {{ session.state }}
+                    {{ session.instruments | length }} screening(s) — {{ session.state }}
                 </small>
             </div>
             <div style="text-align:right;">
-                {% for s in session.screenings %}
-                <span class="severity-{{ s.severity | replace(' ', '-') }}" style="font-size:0.85rem;">
-                    {{ s.instrument_id | upper }}: {{ s.severity }}
-                </span><br>
+                {% for inst in session.instruments %}
+                <span style="font-size:0.85rem;">{{ inst | upper }}</span><br>
                 {% endfor %}
+                {% if session.top_severity %}
+                <span class="severity-{{ session.top_severity | replace(' ', '-') }}" style="font-size:0.85rem;">
+                    {{ session.top_severity }}
+                </span>
+                {% endif %}
             </div>
         </div>
     </a>

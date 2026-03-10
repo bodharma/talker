@@ -1,29 +1,30 @@
 {% extends "base.html" %}
-{% block title %}Talker — Session {{ session.id }}{% endblock %}
+{% block title %}Talker — Session Detail{% endblock %}
 {% block content %}
-<h1>Session {{ session.id }}</h1>
+<h1>Session Detail</h1>
 <p class="subtitle">{{ session.created_at.strftime('%B %d, %Y at %H:%M') }} — {{ session.state }}</p>
 
-{% for screening in session.screenings %}
+{% for result in session.completed_results %}
 <div class="card">
-    <h2>{{ screening.instrument_id | upper }}</h2>
+    <h2>{{ result.instrument_id | upper }}</h2>
     <p>
-        Score: <strong>{{ screening.score }}</strong> —
-        <span class="severity-{{ screening.severity | replace(' ', '-') }}">{{ screening.severity }}</span>
+        Score: <strong>{{ result.score }}</strong> —
+        <span class="severity-{{ result.severity | replace(' ', '-') }}">{{ result.severity }}</span>
     </p>
-    {% if screening.flagged_items %}
-    <p style="color:var(--danger);">Flagged items: {{ screening.flagged_items | join(', ') }}</p>
+    {% if result.flagged_items %}
+    <p style="color:var(--danger);">Flagged items: {{ result.flagged_items | join(', ') }}</p>
     {% endif %}
 </div>
 {% endfor %}
 
-{% if session.conversations %}
+{% if session.chat_messages %}
 <div class="card">
-    <h2>Conversation Notes</h2>
-    {% for conv in session.conversations %}
-        {% for obs in conv.observations %}
-        <p style="margin-bottom:0.5rem;"><strong>{{ obs.topic }}:</strong> {{ obs.observation }}</p>
-        {% endfor %}
+    <h2>Conversation</h2>
+    {% for msg in session.chat_messages %}
+    <div style="margin-bottom:0.75rem;padding:0.5rem;border-radius:0.5rem;{% if msg.role == 'user' %}background:var(--surface);{% endif %}">
+        <small style="color:var(--text-muted);">{{ msg.role | capitalize }}</small>
+        <p style="margin:0.25rem 0 0 0;">{{ msg.content }}</p>
+    </div>
     {% endfor %}
 </div>
 {% endif %}
