@@ -170,6 +170,101 @@ Extracts psychological signal from voice beyond transcript content.
 - Orchestrator queries prior scores for trends
 - Conversation Agent gets high-level context, not full transcripts
 
+## RAG System
+
+Retrieval-Augmented Generation provides grounded, accurate clinical knowledge to all agents.
+
+### Knowledge Bases
+
+**Clinical Knowledge Base**
+- DSM-5 symptom descriptions, diagnostic criteria, and differential diagnosis patterns
+- Comorbidity maps (e.g., depression + anxiety co-occurrence patterns)
+- Indexed and embedded for semantic search
+- Used by: Orchestrator (intake triage), Conversation Agent (informed follow-up)
+
+**Psychoeducation Base**
+- Plain-language explanations of conditions, symptoms, and screening scores
+- Evidence-based treatment modalities per condition (CBT, DBT, EMDR, etc.)
+- "What does my score mean?" content for each instrument and severity level
+- Used by: Conversation Agent, Report Service
+
+**Resource Base**
+- Therapist directories, support groups, crisis resources by region
+- Treatment approach descriptions to help users ask informed questions
+- Used by: Report Service, Conversation Agent
+
+### Implementation
+
+- **Embedding model:** OpenAI `text-embedding-3-small` (cloud) or `nomic-embed-text` via Ollama (local)
+- **Vector store:** pgvector extension for PostgreSQL (keeps everything in one DB)
+- **Chunking:** Markdown-based, semantic chunking by section/topic
+- **Retrieval:** Top-k similarity search with metadata filtering (condition, source type)
+- **Integration:** RAG results injected into agent system prompts as context
+
+### Storage additions:
+- **knowledge_documents** — source documents with metadata (source, type, version)
+- **knowledge_embeddings** — vector embeddings linked to document chunks (pgvector)
+
+## Agentic Tool-Calling
+
+PydanticAI agents use typed tool functions for structured actions.
+
+### Orchestrator Tools
+
+**`select_instruments(reasons: str, instrument_ids: list[str])`**
+- LLM analyzes user's free-form intake and decides which screenings to run
+- Replaces hardcoded instrument selection logic
+- Logs reasoning for audit trail
+
+**`add_instrument(instrument_id: str, reason: str)`**
+- Mid-session, add an instrument to the queue if conversation reveals new areas
+- Example: during depression follow-up, user mentions trauma → adds PCL-5
+
+### Conversation Agent Tools
+
+**`get_score_context(instrument_id: str, score: int) -> str`**
+- Retrieves clinical interpretation of a specific score
+- Percentile norms, what this severity level typically means
+- Powered by RAG from psychoeducation base
+
+**`get_prior_scores(instrument_id: str) -> list[ScreeningResult]`**
+- Queries session history for trend comparison
+- "Your PHQ-9 was 18 last month and 12 today"
+- Only available when memory_consent is True
+
+**`get_clinical_context(symptoms: list[str]) -> str`**
+- RAG retrieval from clinical knowledge base
+- Helps agent ask informed follow-up questions
+- Example: user mentions "hearing voices" → retrieves differential info
+
+**`escalate_safety(reason: str, severity: str)`**
+- LLM-augmented safety detection (catches subtle cues regex misses)
+- Complements the keyword-based Safety Monitor
+- Logs to safety_events for admin audit
+
+### Report Agent Tools
+
+**`generate_report(session_id: int) -> str`**
+- Generates PDF/HTML report from session data
+- Returns file path
+
+**`get_treatment_info(conditions: list[str]) -> str`**
+- RAG retrieval of evidence-based treatment options
+- Included in report recommendations
+
+### Tool-Calling Phasing
+
+| Tool | Phase |
+|------|-------|
+| `select_instruments` | Phase 1 |
+| `get_score_context` | Phase 1 |
+| `escalate_safety` | Phase 2 |
+| `get_prior_scores` | Phase 3 |
+| `add_instrument` | Phase 2 |
+| `get_clinical_context` | Phase 2-3 (needs RAG) |
+| `generate_report` | Phase 3 |
+| `get_treatment_info` | Phase 3 (needs RAG) |
+
 ## LLM Integration
 
 **OpenRouter** as cloud provider:
@@ -240,7 +335,12 @@ talker/
 │   ├── scoring.py              # Generic instrument scorer
 │   ├── storage.py              # Postgres via SQLAlchemy async
 │   ├── report.py               # PDF/HTML generation
-│   └── tracing.py              # Langfuse integration
+│   ├── tracing.py              # Langfuse integration
+│   └── rag.py                  # RAG retrieval service (pgvector)
+├── knowledge/                  # RAG source documents
+│   ├── clinical/               # DSM-5 criteria, differentials
+│   ├── psychoeducation/        # Score explanations, condition info
+│   └── resources/              # Treatment modalities, directories
 ├── instruments/
 │   ├── phq-9.yaml
 │   ├── gad-7.yaml
@@ -313,21 +413,27 @@ Messages are JSON with a `type` field:
 - PostgreSQL storage, session history
 - Basic Jinja2 UI (assess, history, session review)
 - Langfuse tracing
+- Tool-calling: `select_instruments` (LLM-powered intake triage), `get_score_context`
 - No admin panel (use Langfuse dashboard directly)
 
-### Phase 2 — Voice
+### Phase 2 — Voice + Enhanced Intelligence
 - LiveKit voice provider
 - Local voice provider (faster-whisper + Piper)
 - WebSocket protocol
 - Voice response mapping in Screener
 - Raw audio storage with consent
+- Tool-calling: `escalate_safety`, `add_instrument`
+- RAG: Clinical knowledge base + psychoeducation (pgvector)
+- Tool-calling: `get_clinical_context`
 
-### Phase 3 — Full coverage
+### Phase 3 — Full Coverage + RAG
 - Remaining instruments (10+)
 - Ollama local LLM fallback
 - Report generation (PDF/HTML)
 - Admin panel
 - Cross-session memory
+- Tool-calling: `get_prior_scores`, `generate_report`, `get_treatment_info`
+- RAG: Resource base (therapist directories, treatment info)
 
 ### Phase 4 — Voice Analytics
 - Feature extraction (openSMILE)
