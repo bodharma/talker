@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Talker — Settings{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+<p class="subtitle">Configure your Talker experience</p>
+
+<div class="card">
+    <h2>Service Status</h2>
+    <div style="display:grid;gap:0.5rem;margin-top:0.75rem;">
+        <div style="display:flex;justify-content:space-between;">
+            <span>OpenRouter LLM</span>
+            <span style="color: {{ 'var(--accent)' if openrouter_configured else 'var(--danger)' }};">
+                {{ 'Connected' if openrouter_configured else 'Not configured' }}
+            </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+            <span>Langfuse Tracing</span>
+            <span style="color: {{ 'var(--accent)' if langfuse_configured else 'var(--text-muted)' }};">
+                {{ 'Connected' if langfuse_configured else 'Not configured (optional)' }}
+            </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+            <span>Database</span>
+            <span style="color: {{ 'var(--accent)' if db_connected else 'var(--danger)' }};">
+                {{ 'Connected' if db_connected else 'Disconnected' }}
+            </span>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Models</h2>
+    <p style="color:var(--text-muted);margin-bottom:0.5rem;">Current model configuration (set via environment variables)</p>
+    <div style="display:grid;gap:0.5rem;">
+        <div><strong>Conversation:</strong> {{ conversation_model }}</div>
+        <div><strong>Screener:</strong> {{ screener_model }}</div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Loaded Instruments</h2>
+    <ul style="margin-left:1.5rem;">
+        {% for inst in instruments %}
+        <li>{{ inst.name }} ({{ inst.item_count }} items)</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}

@@ -10,6 +10,7 @@ from talker.config import Settings
 from talker.routes.assess import router as assess_router
 from talker.routes.history import router as history_router
 from talker.routes.main import router as main_router
+from talker.routes.settings import router as settings_router
 from talker.services.database import create_session_factory
 from talker.services.tracing import init_langfuse
 
@@ -35,3 +36,4 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 app.include_router(main_router)
 app.include_router(assess_router)
 app.include_router(history_router)
+app.include_router(settings_router)
