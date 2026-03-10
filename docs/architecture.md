@@ -1,7 +1,7 @@
 # Talker — Architecture Document
 
 **Last updated:** 2026-03-10
-**Status:** Phase 1 MVP implemented, Phases 2-4 planned
+**Status:** Phase 1 MVP + DB persistence implemented, Phases 2-4 planned
 
 ## What Is Talker?
 
@@ -47,7 +47,6 @@ graph TB
     ORCH --> DB
 
     style VOICE stroke-dasharray: 5 5
-    style DB stroke-dasharray: 5 5
 ```
 
 **Why this architecture?**
@@ -179,6 +178,7 @@ graph LR
             TRACE_F["tracing.py"]
             INSTR_F["instruments.py"]
             DB_F["database.py"]
+            REPO_F["session_repo.py"]
         end
 
         subgraph models/
@@ -238,17 +238,18 @@ graph TB
         P1_6["Safety Monitor<br/>10 crisis regex patterns"]
         P1_7["Screener Agent<br/>question-by-question flow"]
         P1_8["Conversation Agent<br/>LLM-powered follow-up"]
-        P1_9["Orchestrator<br/>state machine + coordination"]
+        P1_9["Orchestrator<br/>stateless, DB-backed"]
         P1_10["Tool-calling<br/>triage, score context"]
         P1_11["Web UI<br/>full assessment flow"]
         P1_12["History + Settings pages"]
+        P1_13["DB persistence<br/>PostgreSQL + SessionRepository"]
+        P1_14["Docker Compose<br/>app + PostgreSQL"]
     end
 
     subgraph "⬜ NOT YET — Phase 2"
         P2_1["Voice I/O<br/>LiveKit cloud + local Whisper/Piper"]
         P2_2["RAG system<br/>pgvector embeddings + clinical knowledge"]
         P2_3["Voice analytics<br/>mood/sentiment from audio"]
-        P2_4["DB persistence<br/>save sessions to PostgreSQL"]
         P2_5["Report generation<br/>PDF/HTML via WeasyPrint"]
     end
 
@@ -278,6 +279,8 @@ graph TB
     style P1_10 fill:#d4edda
     style P1_11 fill:#d4edda
     style P1_12 fill:#d4edda
+    style P1_13 fill:#d4edda
+    style P1_14 fill:#d4edda
 ```
 
 ### Phase 1 — What works today
@@ -295,21 +298,21 @@ graph TB
 | Safety Monitor | ✅ | 6 | 10 crisis patterns, case-insensitive, 4 resource links |
 | Screener Agent | ✅ | 5 | Question-by-question, scoring, progress tracking |
 | Conversation Agent | ✅ | 3 | System prompt builder with screening context |
-| Orchestrator | ✅ | 5 | Full state machine, instrument queue, triage |
+| Orchestrator | ✅ | 7 | Stateless, DB-backed, replays answers to restore position |
 | Agent tools | ✅ | 5 | parse_instrument_selection, get_score_context, build_triage_prompt |
+| SessionRepository | ✅ | 10 | Full async CRUD: create, load, save answers/screenings/messages/summary |
 | Web UI (home) | ✅ | — | Calming design, SSR |
 | Web UI (assessment) | ✅ | — | Instrument selection → screening → conversation → summary |
-| Web UI (history) | ✅ | — | Template ready, DB query TODO |
+| Web UI (history) | ✅ | — | DB-backed session list + detail views |
 | Web UI (settings) | ✅ | — | Service status display |
-| **Total tests** | | **35** | All passing, ruff clean |
+| Docker Compose | ✅ | — | App + PostgreSQL, auto-migrations on startup |
+| **Total tests** | | **47** | All passing, ruff clean |
 
 ### Phase 1 — Known limitations
 
-- **In-memory sessions** — assessment sessions live in a Python dict, lost on restart. DB persistence is Phase 2.
 - **Conversation falls back to static response** when `OPENROUTER_API_KEY` is not set
 - **No voice** — text-only for now
 - **No report generation** — summary page shows results but no PDF export
-- **History page is empty** — template exists but no DB queries wired
 
 ---
 
@@ -439,7 +442,7 @@ gantt
         Voice I/O (LiveKit + local)   :p2a, 2026-03, 2026-04
         RAG system (pgvector)         :p2b, 2026-03, 2026-04
         Voice analytics               :p2c, 2026-04, 2026-04
-        DB persistence                :p2d, 2026-03, 2026-04
+        DB persistence                :done, p2d, 2026-03, 2026-03
         Report generation             :p2e, 2026-04, 2026-04
     section Phase 3
         Admin panel                   :p3a, 2026-04, 2026-05
@@ -470,8 +473,8 @@ Safety detection must be: instant (no API latency), deterministic (same words al
 ### 5. OpenRouter over direct API
 Single integration point for multiple model providers. Can switch between Claude (quality), GPT (speed), or open models (cost) via config change. The screener uses a cheaper/faster model (Haiku) while conversation uses a more capable one (Sonnet) — different quality needs, same interface.
 
-### 6. In-memory sessions in Phase 1
-Getting the assessment flow right matters more than persistence in MVP. The Orchestrator, agents, and UI can be tested end-to-end without database complexity. DB persistence is a well-understood problem that slots in cleanly once the flow works.
+### 6. Stateless Orchestrator with DB persistence
+The Orchestrator holds no mutable state — it loads SessionData from PostgreSQL per request and replays screener answers to restore position. This makes the app fully stateless and horizontally scalable. UUID session IDs prevent enumeration. JSONB columns store flexible data (instrument queues, raw answers) without schema migrations for every field change.
 
 ### 7. Pydantic everywhere
 `pydantic-settings` for config, Pydantic `BaseModel` for all schemas, PydanticAI for agents, SQLAlchemy with mapped columns. One validation/serialization framework across the entire stack. No data crossing boundaries without type checking.

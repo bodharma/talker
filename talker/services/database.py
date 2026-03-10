@@ -2,6 +2,7 @@ import logging
 import subprocess
 import sys
 from collections.abc import AsyncGenerator
+from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -21,8 +22,9 @@ def create_session_factory(settings: Settings) -> async_sessionmaker[AsyncSessio
 
 def run_migrations() -> None:
     """Run Alembic migrations on startup via subprocess to avoid event loop conflicts."""
+    alembic_ini = Path(__file__).resolve().parent.parent / "alembic.ini"
     result = subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        [sys.executable, "-m", "alembic", "-c", str(alembic_ini), "upgrade", "head"],
         capture_output=True,
         text=True,
     )
