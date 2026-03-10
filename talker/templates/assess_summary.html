@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Talker — Summary{% endblock %}
+{% block content %}
+<h1>Assessment Summary</h1>
+<p class="subtitle">Here's what we found</p>
+
+{% for result in results %}
+<div class="card">
+    <h2>{{ result.instrument_id | upper }}</h2>
+    <p>
+        Score: <strong>{{ result.score }}</strong> —
+        <span class="severity-{{ result.severity | replace(' ', '-') }}">{{ result.severity }}</span>
+    </p>
+    {% if result.flagged_items %}
+    <p style="color:var(--danger);margin-top:0.5rem;">Flagged items: {{ result.flagged_items | join(', ') }}</p>
+    {% endif %}
+</div>
+{% endfor %}
+
+<div class="card">
+    <h2>Recommendations</h2>
+    <ul style="margin-left:1.5rem;">
+        {% for rec in recommendations %}
+        <li>{{ rec }}</li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="card" style="text-align:center;">
+    <a href="/" class="btn btn-primary">Return Home</a>
+    <a href="/report/{{ session_id }}" class="btn btn-secondary" style="margin-left:0.5rem;">Download Report</a>
+</div>
+{% endblock %}

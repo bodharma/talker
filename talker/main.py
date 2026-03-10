@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from talker.config import Settings
+from talker.routes.assess import router as assess_router
 from talker.routes.main import router as main_router
 
 
@@ -26,3 +27,4 @@ static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 app.include_router(main_router)
+app.include_router(assess_router)

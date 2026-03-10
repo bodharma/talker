@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Talker — Assessment{% endblock %}
+{% block content %}
+<h1>New Assessment</h1>
+<p class="subtitle">Choose how you'd like to start</p>
+
+<form method="post" action="/assess/start">
+    <div class="card">
+        <h2>Select Screenings</h2>
+        <p style="color:var(--text-muted);margin-bottom:1rem;">Choose specific areas to screen, or run a full checkup.</p>
+
+        {% for instrument in instruments %}
+        <label class="btn-option" style="display:flex;align-items:center;gap:0.75rem;">
+            <input type="checkbox" name="instruments" value="{{ instrument.id }}" style="width:18px;height:18px;">
+            <div>
+                <strong>{{ instrument.name }}</strong>
+                <br><small style="color:var(--text-muted);">{{ instrument.description }} ({{ instrument.item_count }} questions)</small>
+            </div>
+        </label>
+        {% endfor %}
+
+        <div style="display:flex;gap:1rem;margin-top:1.5rem;">
+            <button type="submit" class="btn btn-primary">Start Selected</button>
+            <button type="submit" name="full_checkup" value="1" class="btn btn-secondary">Full Checkup</button>
+        </div>
+    </div>
+</form>
+{% endblock %}

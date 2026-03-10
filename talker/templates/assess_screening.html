@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Talker — Screening{% endblock %}
+{% block content %}
+<h2>{{ instrument_name }}</h2>
+<p class="subtitle">Question {{ question_number }} of {{ total_questions }}</p>
+
+<div class="progress-bar">
+    <div class="progress-bar-fill" style="width: {{ (question_number / total_questions * 100)|int }}%"></div>
+</div>
+
+<div class="card">
+    <p style="font-size:1.1rem;margin-bottom:1.5rem;line-height:1.5;">
+        Over the last 2 weeks, how often have you been bothered by:<br>
+        <strong>{{ question_text }}</strong>
+    </p>
+
+    <form method="post" action="/assess/answer">
+        <input type="hidden" name="session_id" value="{{ session_id }}">
+        {% for option in response_options %}
+        <button type="submit" name="value" value="{{ option.value }}" class="btn-option">
+            {{ option.label }}
+        </button>
+        {% endfor %}
+    </form>
+</div>
+{% endblock %}

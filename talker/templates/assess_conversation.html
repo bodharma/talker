@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Talker — Conversation{% endblock %}
+{% block content %}
+<h2>Follow-up Conversation</h2>
+<p class="subtitle">Let's explore your results together</p>
+
+<div class="card">
+    <div class="chat-container" id="chat">
+        {% for msg in messages %}
+        <div class="chat-message {{ 'chat-assistant' if msg.role == 'assistant' else 'chat-user' }}">
+            {{ msg.content }}
+        </div>
+        {% endfor %}
+    </div>
+
+    <form method="post" action="/assess/chat" class="chat-input-container">
+        <input type="hidden" name="session_id" value="{{ session_id }}">
+        <input type="text" name="message" class="chat-input" placeholder="Type your response..." autofocus>
+        <button type="submit" class="btn btn-primary">Send</button>
+    </form>
+
+    <div style="margin-top:1rem;text-align:center;">
+        <a href="/assess/summary?session_id={{ session_id }}" class="btn btn-secondary">Skip to Summary</a>
+    </div>
+</div>
+{% endblock %}
