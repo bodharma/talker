@@ -8,7 +8,7 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 
 from talker.agents.orchestrator import Orchestrator
-from talker.main import get_settings
+from talker.config import get_settings
 from talker.models.schemas import SessionState
 from talker.services.instruments import InstrumentLoader
 from talker.services.session_repo import SessionRepository

@@ -1,23 +1,17 @@
 # talker/main.py
 from contextlib import asynccontextmanager
-from functools import lru_cache
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from talker.config import Settings
+from talker.config import get_settings
 from talker.routes.assess import router as assess_router
 from talker.routes.history import router as history_router
 from talker.routes.main import router as main_router
 from talker.routes.settings import router as settings_router
 from talker.services.database import create_session_factory, run_migrations
 from talker.services.tracing import init_langfuse
-
-
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()
 
 
 @asynccontextmanager

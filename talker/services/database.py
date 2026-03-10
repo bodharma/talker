@@ -1,8 +1,8 @@
 import logging
+import subprocess
+import sys
 from collections.abc import AsyncGenerator
 
-from alembic import command
-from alembic.config import Config
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from talker.config import Settings
@@ -20,9 +20,15 @@ def create_session_factory(settings: Settings) -> async_sessionmaker[AsyncSessio
 
 
 def run_migrations() -> None:
-    """Run Alembic migrations on startup."""
-    alembic_cfg = Config("alembic.ini")
-    command.upgrade(alembic_cfg, "head")
+    """Run Alembic migrations on startup via subprocess to avoid event loop conflicts."""
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        log.error("Migration failed: %s", result.stderr)
+        raise RuntimeError(f"Alembic migration failed: {result.stderr}")
     log.info("Database migrations complete")
 
 

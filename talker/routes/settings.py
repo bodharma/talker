@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
 
-from talker.main import get_settings
+from talker.config import get_settings
 from talker.services.instruments import InstrumentLoader
 
 templates = Jinja2Templates(directory="talker/templates")
