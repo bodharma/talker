@@ -11,7 +11,7 @@ from talker.routes.assess import router as assess_router
 from talker.routes.history import router as history_router
 from talker.routes.main import router as main_router
 from talker.routes.settings import router as settings_router
-from talker.services.database import create_session_factory
+from talker.services.database import create_session_factory, run_migrations
 from talker.services.tracing import init_langfuse
 
 
@@ -23,6 +23,7 @@ def get_settings() -> Settings:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    run_migrations()
     init_langfuse(settings)
     app.state.db_session_factory = create_session_factory(settings)
     yield
