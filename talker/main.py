@@ -1,12 +1,13 @@
 # talker/main.py
 from contextlib import asynccontextmanager
 from functools import lru_cache
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 from talker.config import Settings
+from talker.routes.main import router as main_router
 
 
 @lru_cache
@@ -21,4 +22,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Talker", lifespan=lifespan)
 
-templates = Jinja2Templates(directory="talker/templates")
+static_dir = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+app.include_router(main_router)

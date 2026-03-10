@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Talker — Home{% endblock %}
+{% block content %}
+<h1>Welcome to Talker</h1>
+<p class="subtitle">Your psychology pre-assessment guide</p>
+
+<div class="card">
+    <h2>Start a New Assessment</h2>
+    <p style="margin-bottom: 1rem; color: var(--text-muted);">
+        Walk through validated screening questionnaires followed by a guided conversation
+        to help you understand your mental health and prepare for professional consultation.
+    </p>
+    <a href="/assess" class="btn btn-primary">Begin Assessment</a>
+</div>
+
+{% if recent_sessions %}
+<div class="card">
+    <h2>Recent Sessions</h2>
+    {% for session in recent_sessions %}
+    <a href="/assess/{{ session.id }}" style="text-decoration:none;color:inherit;">
+        <div style="padding: 0.75rem 0; border-bottom: 1px solid var(--border);">
+            <span>{{ session.created_at.strftime('%b %d, %Y %H:%M') }}</span>
+            <span style="float:right; color: var(--text-muted);">{{ session.state }}</span>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
