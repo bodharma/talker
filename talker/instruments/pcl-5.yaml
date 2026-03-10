@@ -1,0 +1,82 @@
+metadata:
+  id: pcl-5
+  name: PTSD Checklist for DSM-5
+  description: >
+    A 20-item self-report measure assessing DSM-5 symptoms of PTSD. Items
+    correspond to the DSM-5 symptom criteria for PTSD.
+  item_count: 20
+
+response_options:
+  - label: Not at all
+    value: 0
+  - label: A little bit
+    value: 1
+  - label: Moderately
+    value: 2
+  - label: Quite a bit
+    value: 3
+  - label: Extremely
+    value: 4
+
+questions:
+  - id: q1
+    text: Repeated, disturbing, and unwanted memories of the stressful experience
+  - id: q2
+    text: Repeated, disturbing dreams of the stressful experience
+  - id: q3
+    text: Suddenly feeling or acting as if the stressful experience were actually happening again (as if you were actually back there reliving it)
+  - id: q4
+    text: Feeling very upset when something reminded you of the stressful experience
+  - id: q5
+    text: Having strong physical reactions when something reminded you of the stressful experience (for example, heart pounding, trouble breathing, sweating)
+  - id: q6
+    text: Avoiding memories, thoughts, or feelings related to the stressful experience
+  - id: q7
+    text: Avoiding external reminders of the stressful experience (for example, people, places, conversations, activities, objects, or situations)
+  - id: q8
+    text: Trouble remembering important parts of the stressful experience
+  - id: q9
+    text: "Having strong negative beliefs about yourself, other people, or the world (for example, having thoughts such as: I am bad, there is something seriously wrong with me, no one can be trusted, the world is completely dangerous)"
+  - id: q10
+    text: Blaming yourself or someone else for the stressful experience or what happened after it
+  - id: q11
+    text: Having strong negative feelings such as fear, horror, anger, guilt, or shame
+  - id: q12
+    text: Loss of interest in activities that you used to enjoy
+  - id: q13
+    text: Feeling distant or cut off from other people
+  - id: q14
+    text: Trouble experiencing positive feelings (for example, being unable to feel happiness or have loving feelings for people close to you)
+  - id: q15
+    text: Irritable behavior, angry outbursts, or acting aggressively
+  - id: q16
+    text: Taking too many risks or doing things that could cause you harm
+  - id: q17
+    text: Being "superalert" or watchful or on guard
+  - id: q18
+    text: Feeling jumpy or easily startled
+  - id: q19
+    text: Having difficulty concentrating
+  - id: q20
+    text: Trouble falling or staying asleep
+
+scoring:
+  method: sum
+  description: Sum of all item scores (0–80)
+  thresholds:
+    - max: 32
+      severity: below threshold
+    - max: 80
+      severity: above threshold
+
+flags:
+  - item: q16
+    condition: greater_than
+    value: 2
+    flag_as: 16
+    reason: Endorsement of significant risk-taking behavior warrants safety review
+
+follow_up_hints:
+  - Explore the nature of the index trauma and timeline
+  - Ask about dissociative symptoms and flashback frequency
+  - Inquire about avoidance of trauma reminders and its functional impact

@@ -1,0 +1,53 @@
+metadata:
+  id: gad-7
+  name: Generalized Anxiety Disorder-7
+  description: >
+    A 7-item self-report anxiety screening tool used to assess the severity of
+    generalized anxiety disorder.
+  item_count: 7
+
+response_options:
+  - label: Not at all
+    value: 0
+  - label: Several days
+    value: 1
+  - label: More than half the days
+    value: 2
+  - label: Nearly every day
+    value: 3
+
+questions:
+  - id: q1
+    text: Feeling nervous, anxious, or on edge
+  - id: q2
+    text: Not being able to stop or control worrying
+  - id: q3
+    text: Worrying too much about different things
+  - id: q4
+    text: Trouble relaxing
+  - id: q5
+    text: Being so restless that it's hard to sit still
+  - id: q6
+    text: Becoming easily annoyed or irritable
+  - id: q7
+    text: Feeling afraid as if something awful might happen
+
+scoring:
+  method: sum
+  description: Sum of all item scores (0–21)
+  thresholds:
+    - max: 4
+      severity: minimal
+    - max: 9
+      severity: mild
+    - max: 14
+      severity: moderate
+    - max: 21
+      severity: severe
+
+flags: []
+
+follow_up_hints:
+  - Explore specific worry domains and triggers
+  - Ask about physical anxiety symptoms such as heart pounding or shortness of breath
+  - Inquire about avoidance behaviors and their impact on daily life

@@ -1,0 +1,57 @@
+metadata:
+  id: asrs
+  name: Adult ADHD Self-Report Scale Screener
+  description: >
+    A 6-item screener derived from the 18-question Adult ADHD Self-Report Scale
+    (ASRS-v1.1). Developed in conjunction with the WHO.
+  item_count: 6
+
+response_options:
+  - label: Never
+    value: 0
+  - label: Rarely
+    value: 1
+  - label: Sometimes
+    value: 2
+  - label: Often
+    value: 3
+  - label: Very often
+    value: 4
+
+questions:
+  - id: q1
+    text: How often do you have trouble wrapping up the final details of a project, once the challenging parts have been done?
+    scoring_threshold: 2
+  - id: q2
+    text: How often do you have difficulty getting things in order when you have to do a task that requires organization?
+    scoring_threshold: 2
+  - id: q3
+    text: How often do you have problems remembering appointments or obligations?
+    scoring_threshold: 2
+  - id: q4
+    text: When you have a task that requires a lot of thought, how often do you avoid or delay getting started?
+    scoring_threshold: 2
+  - id: q5
+    text: How often do you fidget or squirm with your hands or feet when you have to sit down for a long time?
+    scoring_threshold: 3
+  - id: q6
+    text: How often do you feel overly active and compelled to do things, like you were driven by a motor?
+    scoring_threshold: 3
+
+scoring:
+  method: asrs_screener
+  description: >
+    Count of items where response meets or exceeds the item-specific scoring
+    threshold (q1–q4: threshold 2, q5–q6: threshold 3).
+  thresholds:
+    - max: 3
+      severity: below threshold
+    - max: 6
+      severity: above threshold
+
+flags: []
+
+follow_up_hints:
+  - Explore onset of attention difficulties — before or after age 12
+  - Ask about performance in academic and occupational settings
+  - Inquire about hyperactive-impulsive symptoms across multiple domains

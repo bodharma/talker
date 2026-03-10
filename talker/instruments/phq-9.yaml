@@ -1,0 +1,64 @@
+metadata:
+  id: phq-9
+  name: Patient Health Questionnaire-9
+  description: >
+    A 9-item self-report depression screening tool based on DSM-IV diagnostic
+    criteria for major depressive disorder.
+  item_count: 9
+
+response_options:
+  - label: Not at all
+    value: 0
+  - label: Several days
+    value: 1
+  - label: More than half the days
+    value: 2
+  - label: Nearly every day
+    value: 3
+
+questions:
+  - id: q1
+    text: Little interest or pleasure in doing things
+  - id: q2
+    text: Feeling down, depressed, or hopeless
+  - id: q3
+    text: Trouble falling or staying asleep, or sleeping too much
+  - id: q4
+    text: Feeling tired or having little energy
+  - id: q5
+    text: Poor appetite or overeating
+  - id: q6
+    text: Feeling bad about yourself — or that you are a failure or have let yourself or your family down
+  - id: q7
+    text: Trouble concentrating on things, such as reading the newspaper or watching television
+  - id: q8
+    text: Moving or speaking so slowly that other people could have noticed, or the opposite — being so fidgety or restless that you have been moving around a lot more than usual
+  - id: q9
+    text: Thoughts that you would be better off dead or of hurting yourself in some way
+
+scoring:
+  method: sum
+  description: Sum of all item scores (0–27)
+  thresholds:
+    - max: 4
+      severity: minimal
+    - max: 9
+      severity: mild
+    - max: 14
+      severity: moderate
+    - max: 19
+      severity: moderately severe
+    - max: 27
+      severity: severe
+
+flags:
+  - item: q9
+    condition: greater_than
+    value: 0
+    flag_as: 9
+    reason: Endorsement of suicidal ideation requires immediate safety review
+
+follow_up_hints:
+  - Explore duration and onset of depressive symptoms
+  - Ask about functional impairment in work, relationships, and daily activities
+  - Inquire about prior depressive episodes and treatment history
