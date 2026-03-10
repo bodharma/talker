@@ -1,4 +1,3 @@
-import pytest
 from talker.agents.conversation import ConversationAgent, ConversationContext
 from talker.models.schemas import ScreeningResult
 

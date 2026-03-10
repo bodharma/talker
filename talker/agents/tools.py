@@ -87,9 +87,9 @@ def get_score_context(
         )
     elif severity == "mild":
         context += (
-            f"A score in the mild range suggests some symptoms are present. "
-            f"Monitoring over time is recommended. If symptoms persist or worsen, "
-            f"consider consulting a professional."
+            "A score in the mild range suggests some symptoms are present. "
+            "Monitoring over time is recommended. If symptoms persist or worsen, "
+            "consider consulting a professional."
         )
     else:
         context += (

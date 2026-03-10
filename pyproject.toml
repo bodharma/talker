@@ -3,7 +3,7 @@ name = "talker"
 version = "0.1.0"
 description = "Psychology pre-assessment voice assistant"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.115.0",
     "jinja2>=3.1.0",
@@ -36,3 +36,9 @@ include = ["talker*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "ruff>=0.15.5",
+]

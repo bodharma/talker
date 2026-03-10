@@ -6,7 +6,6 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 
 from talker.agents.orchestrator import Orchestrator
-from talker.config import Settings
 from talker.main import get_settings
 from talker.services.instruments import InstrumentLoader
 
@@ -111,7 +110,6 @@ async def assess_conversation(request: Request, session_id: str):
 
     messages = _chat_histories.get(session_id, [])
     if not messages:
-        ctx = orch.get_conversation_context()
         intro = "Thank you for completing the screenings. I'd like to learn more about how you've been feeling. "
         if orch.completed_results:
             intro += "Based on your responses, I have a few areas I'd like to explore with you. How are you doing right now?"

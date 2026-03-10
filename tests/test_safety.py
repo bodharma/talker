@@ -1,4 +1,3 @@
-import pytest
 from talker.agents.safety import SafetyMonitor, SafetyInterrupt
 
 

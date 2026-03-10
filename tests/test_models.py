@@ -1,4 +1,3 @@
-import pytest
 from talker.models.schemas import (
     SessionCreate, SessionState, ScreeningResult, InstrumentMetadata,
 )

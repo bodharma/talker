@@ -1,4 +1,3 @@
-import pytest
 from talker.agents.tools import (
     parse_instrument_selection,
     get_score_context,

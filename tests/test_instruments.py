@@ -1,5 +1,4 @@
-import pytest
-from talker.services.instruments import InstrumentLoader, InstrumentDefinition
+from talker.services.instruments import InstrumentLoader
 
 def test_load_phq9():
     loader = InstrumentLoader("talker/instruments")
