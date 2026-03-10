@@ -266,7 +266,6 @@ async def assess_chat(
 @router.get("/summary")
 async def assess_summary(request: Request, session_id: str):
     sid = uuid.UUID(session_id)
-    orch = Orchestrator()
 
     session_factory = request.app.state.db_session_factory
     async with session_factory() as db:

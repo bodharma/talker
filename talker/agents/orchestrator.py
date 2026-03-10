@@ -2,7 +2,7 @@ from talker.agents.conversation import ConversationAgent, ConversationContext
 from talker.agents.safety import SafetyInterrupt, SafetyMonitor
 from talker.agents.screener import ScreenerAgent
 from talker.agents.tools import build_triage_prompt, get_score_context, parse_instrument_selection
-from talker.models.schemas import ScreeningResult, SessionData, SessionState
+from talker.models.schemas import SessionData, SessionState
 from talker.services.instruments import InstrumentLoader
 
 
