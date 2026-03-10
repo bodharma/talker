@@ -1,6 +1,7 @@
 from talker.agents.conversation import ConversationAgent, ConversationContext
 from talker.agents.safety import SafetyMonitor, SafetyInterrupt
 from talker.agents.screener import ScreenerAgent
+from talker.agents.tools import build_triage_prompt, parse_instrument_selection, get_score_context
 from talker.models.schemas import ScreeningResult, SessionState
 from talker.services.instruments import InstrumentLoader
 
@@ -95,3 +96,20 @@ class Orchestrator:
 
     def complete(self) -> None:
         self.state = SessionState.COMPLETED
+
+    def get_triage_prompt(self, user_input: str) -> str:
+        """Build prompt for LLM to select instruments based on user's intake."""
+        return build_triage_prompt(user_input, self.loader)
+
+    def select_instruments_from_triage(self, instrument_ids: list[str]) -> None:
+        """Select instruments after LLM triage. Validates IDs."""
+        valid_ids = {i.metadata.id for i in self.loader.load_all()}
+        validated = parse_instrument_selection(instrument_ids, valid_ids)
+        if not validated:
+            self.select_full_checkup()
+        else:
+            self.select_instruments(validated)
+
+    def get_score_context_for_result(self, instrument_id: str, score: int) -> str:
+        """Get interpretation context for a screening score."""
+        return get_score_context(instrument_id, score, self.loader)
