@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from talker.config import Settings
 from talker.routes.assess import router as assess_router
 from talker.routes.main import router as main_router
+from talker.services.tracing import init_langfuse
 
 
 @lru_cache
@@ -18,6 +19,8 @@ def get_settings() -> Settings:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    settings = get_settings()
+    init_langfuse(settings)
     yield
 
 

@@ -1,8 +1,13 @@
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.openrouter import OpenRouterProvider
 
 from talker.agents.orchestrator import Orchestrator
+from talker.config import Settings
+from talker.main import get_settings
 from talker.services.instruments import InstrumentLoader
 
 templates = Jinja2Templates(directory="talker/templates")
@@ -120,6 +125,31 @@ async def assess_conversation(request: Request, session_id: str):
     )
 
 
+async def _get_llm_response(orch: Orchestrator, messages: list[dict], user_message: str) -> str:
+    """Get LLM response for conversation."""
+    settings = get_settings()
+    if not settings.openrouter_api_key:
+        return "Thank you for sharing that. Could you tell me more about how this has been affecting your daily life?"
+
+    ctx = orch.get_conversation_context()
+    system_prompt = orch.conversation.build_system_prompt(ctx)
+
+    model = OpenAIChatModel(
+        settings.openrouter_model_conversation,
+        provider=OpenRouterProvider(api_key=settings.openrouter_api_key),
+    )
+    agent = Agent(model, system_prompt=system_prompt)
+
+    # Build message history for context
+    history_text = "\n".join(
+        f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content']}"
+        for m in messages[-10:]  # Last 10 messages for context
+    )
+
+    result = await agent.run(f"Conversation so far:\n{history_text}\n\nUser: {user_message}")
+    return result.output
+
+
 @router.post("/chat")
 async def assess_chat(
     request: Request,
@@ -141,11 +171,8 @@ async def assess_chat(
         _chat_histories[session_id] = messages
         return RedirectResponse(url=f"/assess/conversation?session_id={session_id}", status_code=303)
 
-    # TODO: Integrate LLM call here. For now, static response.
-    messages.append({
-        "role": "assistant",
-        "content": "Thank you for sharing that. Could you tell me more about how this has been affecting your daily life?",
-    })
+    response = await _get_llm_response(orch, messages, message)
+    messages.append({"role": "assistant", "content": response})
     _chat_histories[session_id] = messages
 
     return RedirectResponse(url=f"/assess/conversation?session_id={session_id}", status_code=303)
