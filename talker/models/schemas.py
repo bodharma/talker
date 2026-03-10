@@ -1,5 +1,7 @@
+import uuid as uuid_mod
 from datetime import datetime
 from enum import StrEnum
+
 from pydantic import BaseModel, Field
 
 
@@ -65,3 +67,32 @@ class SafetyEvent(BaseModel):
     agent: str
     message_shown: str
     resources_provided: list[str] = Field(default_factory=list)
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class SessionData(BaseModel):
+    """Full in-flight session state loaded from DB."""
+
+    id: uuid_mod.UUID
+    state: SessionState
+    instrument_queue: list[str] = Field(default_factory=list)
+    current_instrument_index: int = 0
+    completed_results: list[ScreeningResult] = Field(default_factory=list)
+    chat_messages: list[ChatMessage] = Field(default_factory=list)
+    current_answers: dict[str, int] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class SessionListItem(BaseModel):
+    """Summary for history list page."""
+
+    id: uuid_mod.UUID
+    state: str
+    created_at: datetime
+    completed_at: datetime | None = None
+    instruments: list[str] = Field(default_factory=list)
+    top_severity: str | None = None
