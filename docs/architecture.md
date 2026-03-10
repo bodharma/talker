@@ -244,13 +244,13 @@ graph TB
         P1_12["History + Settings pages"]
         P1_13["DB persistence<br/>PostgreSQL + SessionRepository"]
         P1_14["Docker Compose<br/>app + PostgreSQL"]
+        P1_15["Report generation<br/>PDF/HTML via WeasyPrint"]
     end
 
     subgraph "⬜ NOT YET — Phase 2"
         P2_1["Voice I/O<br/>LiveKit cloud + local Whisper/Piper"]
         P2_2["RAG system<br/>pgvector embeddings + clinical knowledge"]
         P2_3["Voice analytics<br/>mood/sentiment from audio"]
-        P2_5["Report generation<br/>PDF/HTML via WeasyPrint"]
     end
 
     subgraph "⬜ NOT YET — Phase 3"
@@ -281,6 +281,7 @@ graph TB
     style P1_12 fill:#d4edda
     style P1_13 fill:#d4edda
     style P1_14 fill:#d4edda
+    style P1_15 fill:#d4edda
 ```
 
 ### Phase 1 — What works today
@@ -306,13 +307,13 @@ graph TB
 | Web UI (history) | ✅ | — | DB-backed session list + detail views |
 | Web UI (settings) | ✅ | — | Service status display |
 | Docker Compose | ✅ | — | App + PostgreSQL, auto-migrations on startup |
-| **Total tests** | | **47** | All passing, ruff clean |
+| Report generation | ✅ | 8 | PDF/HTML via WeasyPrint, download from summary + history |
+| **Total tests** | | **55** | All passing, ruff clean |
 
 ### Phase 1 — Known limitations
 
 - **Conversation falls back to static response** when `OPENROUTER_API_KEY` is not set
 - **No voice** — text-only for now
-- **No report generation** — summary page shows results but no PDF export
 
 ---
 
@@ -443,7 +444,7 @@ gantt
         RAG system (pgvector)         :p2b, 2026-03, 2026-04
         Voice analytics               :p2c, 2026-04, 2026-04
         DB persistence                :done, p2d, 2026-03, 2026-03
-        Report generation             :p2e, 2026-04, 2026-04
+        Report generation             :done, p2e, 2026-03, 2026-03
     section Phase 3
         Admin panel                   :p3a, 2026-04, 2026-05
         Local LLM (Ollama)            :p3b, 2026-04, 2026-05

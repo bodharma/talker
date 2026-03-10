@@ -226,3 +226,26 @@ class SessionRepository:
 
     async def get_detail(self, session_id: uuid_mod.UUID) -> SessionData | None:
         return await self.load(session_id)
+
+    async def get_recommendations(self, session_id: uuid_mod.UUID) -> list[str]:
+        stmt = select(SessionSummaryRecord).where(
+            SessionSummaryRecord.session_id == session_id
+        )
+        result = await self.db.execute(stmt)
+        summary = result.scalar_one_or_none()
+        if summary is None:
+            return []
+        return summary.recommendations
+
+    async def get_safety_events(self, session_id: uuid_mod.UUID) -> list[dict]:
+        stmt = (
+            select(SafetyEventRecord)
+            .where(SafetyEventRecord.session_id == session_id)
+            .order_by(SafetyEventRecord.created_at)
+        )
+        result = await self.db.execute(stmt)
+        events = result.scalars().all()
+        return [
+            {"trigger": e.trigger, "message_shown": e.message_shown}
+            for e in events
+        ]
