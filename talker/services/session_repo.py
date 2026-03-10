@@ -1,5 +1,5 @@
 import uuid as uuid_mod
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -112,7 +112,7 @@ class SessionRepository:
         if instrument_index is not None:
             session.current_instrument_index = instrument_index
         if state == SessionState.COMPLETED:
-            session.completed_at = datetime.utcnow()
+            session.completed_at = datetime.now(UTC)
         await self.db.flush()
 
     async def save_screening(
