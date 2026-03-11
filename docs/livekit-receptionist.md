@@ -26,7 +26,9 @@ A voice-based AI receptionist for The Shard in London. A guest walks in, the age
 | `check_availability` | Check if a specific person is available right now | Mock — random availability with reasons |
 | `get_weather` | Current London weather | **Real** — OpenWeatherMap free API |
 | `get_building_info` | Floor guide, facilities, restaurants, observation deck | Mock — static building knowledge |
-| `log_visitor` | Record the visit (name, who they're seeing, time) | Mock — prints to console |
+| `log_visitor` | Record the visit + link to visitor record if tracked | **Real** — PostgreSQL when configured, console fallback |
+| `recognize_visitor` | Find a returning visitor by email or name | **Real** — PostgreSQL visitor tracking |
+| `register_visitor` | Silently register a new visitor for future recognition | **Real** — PostgreSQL visitor tracking |
 
 ### What makes it human
 
@@ -35,6 +37,7 @@ A voice-based AI receptionist for The Shard in London. A guest walks in, the age
 - Small talk capable — weather, the view from the 72nd floor, restaurant recommendations
 - Knows when to stop asking and just help
 - Varied responses — not robotic repetition
+- Remembers returning visitors — silently recognizes by name/email, retrieves visit history for personalized conversation. Never says "let me register you" — just remembers, like a good receptionist
 
 ## How to run
 
@@ -68,9 +71,9 @@ uv run python -m talker.livekit_agent --persona receptionist
 # Enter your LiveKit Cloud URL and connect
 ```
 
-### Run the receptionist directly (no full Talker stack needed)
+### Run the receptionist directly (minimal setup)
 
-The agent is self-contained — it needs LiveKit credentials and optionally an OpenWeatherMap key for live weather. No database, no PostgreSQL, no migrations.
+The agent needs LiveKit credentials and optionally an OpenWeatherMap key for live weather. PostgreSQL is optional — without it, visitor tracking is disabled but everything else works.
 
 ```bash
 # Minimal run
@@ -86,12 +89,25 @@ uv run python -m talker.livekit_agent --persona receptionist
 talker/
   livekit_agent.py          # LiveKit agent entrypoint — session setup, persona loading
   personas/
-    receptionist.py         # Shard receptionist tools (@function_tool definitions)
+    receptionist.py         # Shard receptionist tools (7 @function_tool definitions)
     assessor.py             # Psychology assessor tools (existing Talker functionality)
+  capabilities/
+    base.py                 # BaseCapability ABC for pluggable pipeline modules
+    voice_analysis.py       # Voice analysis + mood inference capability
   services/
+    visitor_repo.py         # Visitor tracking repository (PostgreSQL)
     voice.py                # Voice provider abstraction (local / cloud / livekit)
+  models/
+    db.py                   # Visitor + VisitorLog ORM models
+  routes/
+    livekit.py              # LiveKit voice page + token endpoint (auth gating)
+  templates/
+    livekit_voice.html      # Embedded voice session UI
 tests/
-  test_receptionist.py      # Tool unit tests — directory lookup, availability, building info
+  test_receptionist.py      # 29 tests — tools, visitor tracking, data integrity
+  test_assessor.py          # 26 tests — assessor persona tools
+  test_capabilities.py      # 21 tests — voice analysis, mood inference
+  test_livekit_routes.py    # 6 tests — token endpoint, voice page, auth gating
 ```
 
 ### Key design decisions
@@ -117,7 +133,11 @@ Tests cover:
 - Availability checking — available, unavailable with reason, out of office
 - Building info — known facilities, unknown queries
 - Weather tool — API call with mock response
-- Visitor logging
+- Visitor logging — with and without DB tracking
+- Visitor recognition — by email, by name, no DB fallback
+- Visitor registration — with and without DB
+- Agent instantiation, instruction content, tool count
+- Data integrity — tenant count, floor validation, required fields
 
 ## Wider vision
 

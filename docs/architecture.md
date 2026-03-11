@@ -41,7 +41,7 @@ graph TB
 
     subgraph "Tool Registries"
         ATOOLS["Assessor Tools<br/>triage, scoring, safety"]
-        RTOOLS["Receptionist Tools<br/>directory, weather,<br/>building info, visitor log"]
+        RTOOLS["Receptionist Tools<br/>directory, weather,<br/>building info, visitor log,<br/>recognize + register visitor"]
     end
 
     subgraph "Services Layer"
@@ -119,7 +119,7 @@ graph TB
         direction TB
         PA["🧠 Psychology Assessor<br/>━━━━━━━━━━━━━━━<br/>Tools: triage, screening,<br/>scoring, safety, RAG<br/>Transport: WebSocket + Web UI<br/>Data: YAML instruments,<br/>knowledge base, PostgreSQL"]
 
-        PR["🏢 Shard Receptionist<br/>━━━━━━━━━━━━━━━<br/>Tools: directory lookup,<br/>availability, building info,<br/>weather API, visitor log<br/>Transport: LiveKit rooms<br/>Data: in-memory dicts"]
+        PR["🏢 Shard Receptionist<br/>━━━━━━━━━━━━━━━<br/>Tools: directory lookup,<br/>availability, building info,<br/>weather, visitor log,<br/>recognize visitor, register visitor<br/>Transport: LiveKit rooms<br/>Data: in-memory dicts + PostgreSQL<br/>(visitor tracking)"]
     end
 ```
 
@@ -324,6 +324,7 @@ graph LR
 
         subgraph personas/
             REC_P["receptionist.py<br/>Shard receptionist tools + agent"]
+            ASSESS_P["assessor.py<br/>Psychology assessor tools + agent"]
         end
 
         subgraph agents/
@@ -342,6 +343,7 @@ graph LR
             INSTR_F["instruments.py"]
             DB_F["database.py"]
             REPO_F["session_repo.py"]
+            VREP_F["visitor_repo.py"]
             VOICE_F["voice.py"]
             VFEAT_F["voice_features.py"]
             EMB_F["embeddings.py"]
@@ -366,6 +368,7 @@ graph LR
             SET_R["settings.py → /settings"]
             REPORT_R["report.py → /report/*"]
             ADMIN_R["admin.py → /admin/*"]
+            LK_R["livekit.py → /livekit/*, /api/livekit/*"]
         end
 
         subgraph "templates/ + static/"
@@ -495,8 +498,8 @@ graph TB
 |---|---|---|---|
 | Config (pydantic-settings) | ✅ | — | `.env` loading, all keys with defaults |
 | Pydantic schemas | ✅ | 4 | SessionState, ScreeningResult, etc |
-| SQLAlchemy ORM | ✅ | — | User, Session, Screening, Conversation, SafetyEvent, Knowledge tables |
-| Alembic migrations | ✅ | — | 3 migrations (initial, knowledge tables, admin_notes) |
+| SQLAlchemy ORM | ✅ | — | User, Session, Screening, Conversation, SafetyEvent, Knowledge, Visitor, VisitorLog tables |
+| Alembic migrations | ✅ | — | 4 migrations (initial, knowledge tables, admin_notes, visitor tracking) |
 | Instrument loader | ✅ | 5 | YAML parsing, scoring (sum + asrs_screener), flag rules |
 | PHQ-9, GAD-7, PCL-5, ASRS | ✅ | — | Complete YAML definitions |
 | LLM service | ✅ | 6 | OpenRouter + Ollama fallback via PydanticAI |
@@ -528,9 +531,12 @@ graph TB
 | Longitudinal trends | ✅ | 1 | Score history, trend direction, Chart.js visualization |
 | Deployment prep | ✅ | 3 | Security headers, health endpoint, trusted hosts |
 | LiveKit agent | ✅ | — | Persona-driven entrypoint, STT/LLM/TTS pipeline, CLI |
-| Receptionist persona | ✅ | 25 | 5 tools, fuzzy matching, directory, weather API |
+| LiveKit web UI | ✅ | 6 | Embedded voice session page, token endpoint, auth gating |
+| Receptionist persona | ✅ | 29 | 7 tools, fuzzy matching, directory, weather API, visitor tracking |
+| Assessor persona | ✅ | 26 | 9 tools, wraps existing orchestrator stack for LiveKit |
 | Capabilities system | ✅ | 21 | Voice analysis, mood inference (6 rules), trend tracking |
-| **Total tests** | | **165** | All passing, ruff clean |
+| Visitor tracking | ✅ | — | Silent recognition by name/email, visit history, Visitor/VisitorLog models |
+| **Total tests** | | **201** | All passing, ruff clean |
 
 ### Known limitations
 

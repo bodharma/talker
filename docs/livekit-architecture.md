@@ -27,7 +27,7 @@ graph LR
         SESSION["AgentSession<br/>livekit_agent.py"]
         PERSONA["ReceptionistAgent<br/>personas/receptionist.py"]
         LLM["OpenAI GPT-4.1-mini<br/>Reasoning + tool selection"]
-        TOOLS["Tool Registry<br/>5 @function_tool functions"]
+        TOOLS["Tool Registry<br/>7 @function_tool functions"]
     end
 
     MIC -->|WebRTC audio| ROOM
@@ -94,7 +94,7 @@ classDiagram
 
     class ReceptionistAgent {
         +instructions: RECEPTIONIST_INSTRUCTIONS
-        +tools: 5 function_tools
+        +tools: 7 function_tools
     }
 
     class AgentSession {
@@ -130,7 +130,9 @@ graph TB
         CA["📋 check_availability<br/>Is the person available<br/>to receive visitors?"]
         BI["🏢 get_building_info<br/>Facilities, transport,<br/>restaurants, amenities"]
         GW["🌤 get_weather<br/>Live London weather<br/>OpenWeatherMap API"]
-        LV["📝 log_visitor<br/>Record arrival for<br/>building security"]
+        LV["📝 log_visitor<br/>Record arrival +<br/>link to visitor record"]
+        RV["👤 recognize_visitor<br/>Find returning visitors<br/>by email or name"]
+        REG["📋 register_visitor<br/>Silently register new<br/>visitors for tracking"]
     end
 
     subgraph "Data Sources"
@@ -138,14 +140,16 @@ graph TB
         AVAIL["_UNAVAILABLE dict<br/>Pre-set out-of-office<br/>+ 15% random chance"]
         BINFO["BUILDING_INFO dict<br/>15 topics: bathroom, parking,<br/>wifi, lifts, restaurants..."]
         API["OpenWeatherMap API<br/>GET /data/2.5/weather<br/>q=London,GB"]
-        LOG["Python logger<br/>VISITOR LOG: name → person (floor)"]
+        VDB["PostgreSQL<br/>visitors + visitor_logs<br/>via visitor_repo.py"]
     end
 
     LT --> DIR
     CA --> AVAIL
     BI --> BINFO
     GW --> API
-    LV --> LOG
+    LV --> VDB
+    RV --> VDB
+    REG --> VDB
 ```
 
 ---
@@ -447,7 +451,7 @@ graph TB
 
         subgraph "personas/"
             PI["__init__.py"]
-            REC["receptionist.py<br/>━━━━━━━━━━━━━━━<br/>• DIRECTORY (12 tenants)<br/>• BUILDING_INFO (15 topics)<br/>• _UNAVAILABLE (preset)<br/>• _fuzzy_find() helper<br/>• 5 @function_tool functions<br/>• RECEPTIONIST_INSTRUCTIONS<br/>• ReceptionistAgent(Agent)"]
+            REC["receptionist.py<br/>━━━━━━━━━━━━━━━<br/>• DIRECTORY (12 tenants)<br/>• BUILDING_INFO (15 topics)<br/>• _UNAVAILABLE (preset)<br/>• _fuzzy_find() helper<br/>• 7 @function_tool functions<br/>• Visitor tracking (silent)<br/>• RECEPTIONIST_INSTRUCTIONS<br/>• ReceptionistAgent(Agent)"]
         end
 
         subgraph "capabilities/"
@@ -462,8 +466,10 @@ graph TB
     end
 
     subgraph "tests/"
-        TEST_R["test_receptionist.py<br/>25 tests"]
+        TEST_R["test_receptionist.py<br/>29 tests"]
         TEST_C["test_capabilities.py<br/>21 tests"]
+        TEST_A["test_assessor.py<br/>26 tests"]
+        TEST_LK["test_livekit_routes.py<br/>6 tests"]
     end
 
     LA --> REC
@@ -474,6 +480,7 @@ graph TB
     LA --> CONFIG
     TEST_R --> REC
     TEST_C --> CAP_V
+    TEST_LK --> LA
 ```
 
 ---
@@ -521,6 +528,8 @@ class ReceptionistAgent(Agent):
                 get_building_info,
                 get_weather,
                 log_visitor,
+                recognize_visitor,
+                register_visitor,
                 my_new_tool,  # ← add here
             ],
         )
@@ -597,7 +606,7 @@ graph LR
 
 ```mermaid
 graph TB
-    subgraph "test_receptionist.py — 25 tests"
+    subgraph "test_receptionist.py — 29 tests"
         subgraph "Pure Functions (7)"
             T1["_fuzzy_find exact match"]
             T2["_fuzzy_find by person"]
@@ -608,7 +617,7 @@ graph TB
             T7["_fuzzy_find whitespace"]
         end
 
-        subgraph "Tool Functions (11)"
+        subgraph "Tool Functions (15)"
             T8["lookup_tenant found"]
             T9["lookup_tenant not found"]
             T10["lookup_tenant fuzzy"]
@@ -620,12 +629,16 @@ graph TB
             T16["building_info unknown"]
             T17["weather fallback"]
             T18["visitor log"]
+            T18b["visitor log untracked"]
+            T18c["recognize visitor (no db)"]
+            T18d["recognize visitor (no params)"]
+            T18e["register visitor (no db)"]
         end
 
         subgraph "Agent + Data (7)"
             T19["instantiation"]
             T20["has instructions"]
-            T21["has 5 tools"]
+            T21["has 7 tools"]
             T22["6+ unique tenants"]
             T23["all floors positive"]
             T24["essential topics"]

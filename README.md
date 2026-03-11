@@ -26,6 +26,10 @@ After meeting Dave and seeing the LiveKit voice agent task, I didn't want to sta
 
 **Persona system** — prompts managed via Langfuse. Switch the persona and tools, get a different agent. Psychology assessor and Shard receptionist run on the same engine.
 
+**Visitor tracking** — the receptionist silently recognizes returning visitors by name or email, retrieves visit history, and personalizes conversation. No forms, no "let me register you" — it just remembers, like a good receptionist.
+
+**Auth gating** — assessor personas require a logged-in user. The receptionist is open to anyone.
+
 **Multi-user auth** — role-based (admin / clinician / patient), OAuth (Google, Apple), invite system, rate limiting.
 
 **Observability** — every LLM call traced via Langfuse. Prompt management, quality auditing, and conversation replay.
@@ -37,15 +41,16 @@ talker/
   agents/           # Orchestrator, screener, conversation, safety monitor, voice mapper
   services/         # LLM, voice, RAG, auth, scheduling, trends, tracing
   models/           # SQLAlchemy ORM + Pydantic schemas
-  routes/           # FastAPI routes (assess, auth, admin, clinician, history)
+  routes/           # FastAPI routes (assess, auth, admin, clinician, history, livekit)
   instruments/      # YAML screening definitions (PHQ-9, GAD-7, PCL-5, ASRS)
   knowledge/        # Clinical markdown docs for RAG (depression, anxiety, PTSD, ADHD)
   templates/        # Jinja2 SSR (calming, minimal UI)
   static/           # CSS + voice JS client
-tests/              # 119 tests — instruments, agents, services, auth, deployment
+tests/              # 201 tests — instruments, agents, services, auth, personas, voice
 docs/
   architecture.md   # Full technical architecture with diagrams
   livekit-receptionist.md  # Dave's task — setup, design, how to run
+  livekit-architecture.md  # LiveKit integration architecture with diagrams
 ```
 
 ## Tech stack
