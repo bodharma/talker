@@ -348,20 +348,26 @@ async function connect() {
             const role = isAgent ? "Assistant" : "You";
             const cls = isAgent ? "assistant" : "user";
 
-            // Stream text as it arrives
-            const segmentId = reader.info.id;
-            let msgDiv = document.getElementById(`transcript-${segmentId}`);
+            // Use segment_id from attributes to group partial/final updates
+            const attrs = reader.info.attributes || {};
+            const segmentId = attrs['lk.segment_id'] || reader.info.id;
+            const divId = `transcript-${segmentId}`;
+
+            let msgDiv = document.getElementById(divId);
             if (!msgDiv) {
                 msgDiv = document.createElement("div");
-                msgDiv.id = `transcript-${segmentId}`;
+                msgDiv.id = divId;
                 msgDiv.className = `chat-message chat-${cls}`;
                 msgDiv.innerHTML = `<div class="chat-role">${escapeHtml(role)}</div><div class="chat-content"></div>`;
                 transcriptEl.appendChild(msgDiv);
             }
             const contentEl = msgDiv.querySelector(".chat-content");
 
+            // Replace content (not append) — each stream is the full text for this segment
+            let fullText = "";
             for await (const chunk of reader) {
-                contentEl.textContent += chunk;
+                fullText += chunk;
+                contentEl.textContent = fullText;
                 transcriptEl.scrollTop = transcriptEl.scrollHeight;
             }
         });
