@@ -24,6 +24,21 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_host: str = "https://cloud.langfuse.com"
 
+    # Voice - Provider
+    voice_provider: str = "local"  # "local" or "cloud"
+
+    # Voice - Local
+    voice_local_stt_model: str = "base"
+    voice_local_tts_model: str = "en_US-amy-medium"
+    voice_local_models_dir: str = "models/voice"
+
+    # Voice - Cloud
+    deepgram_api_key: str = ""
+    deepgram_model: str = "nova-2"
+    elevenlabs_api_key: str = ""
+    elevenlabs_model: str = "eleven_multilingual_v2"
+    elevenlabs_voice_id: str = ""
+
     # App
     app_secret_key: str = "change-me-in-production"
     admin_token: str = "change-me-in-production"
