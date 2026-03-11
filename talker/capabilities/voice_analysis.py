@@ -100,60 +100,41 @@ def infer_mood(features: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Tool — lets the LLM query accumulated voice analysis
+# DB persistence
 # ---------------------------------------------------------------------------
 
-# Module-level state for the tool to access (set by the capability instance)
-_latest_analysis: dict[str, Any] = {}
-_analysis_history: deque[dict[str, Any]] = deque(maxlen=20)
+_db_session_factory = None
 
 
-@function_tool()
-async def get_voice_analysis(
-    context: RunContext,
-) -> dict[str, Any]:
-    """Get the latest voice analysis of the current speaker, including mood indicators,
-    pitch, speech rate, and vocal quality. Use this to understand how the person
-    is feeling based on how they sound, not just what they say."""
-    if not _latest_analysis:
-        return {"available": False, "reason": "No voice data analyzed yet."}
-    return {"available": True, **_latest_analysis}
+def set_voice_db_factory(factory) -> None:
+    """Wire up the DB session factory for voice analysis persistence."""
+    global _db_session_factory
+    _db_session_factory = factory
 
 
-@function_tool()
-async def get_voice_trend(
-    context: RunContext,
-) -> dict[str, Any]:
-    """Get the trend of the speaker's voice across the conversation so far.
-    Shows how their mood and vocal features have changed over multiple turns.
-    Useful for noticing if someone is becoming more anxious or calming down."""
-    if len(_analysis_history) < 2:
-        return {"available": False, "reason": "Need at least 2 voice samples for trend."}
+async def _persist_turn(
+    room_name: str,
+    turn_number: int,
+    features: dict[str, Any],
+    mood: dict[str, Any],
+) -> None:
+    """Save a voice analysis turn to the database (fire-and-forget)."""
+    if not _db_session_factory:
+        return
+    try:
+        from talker.models.db import VoiceAnalysisTurn
 
-    history = list(_analysis_history)
-    first = history[0]
-    latest = history[-1]
-
-    trend = {}
-    for key in ["pitch_mean", "speech_rate", "jitter", "intensity_mean"]:
-        first_val = first.get("features", {}).get(key, 0)
-        latest_val = latest.get("features", {}).get(key, 0)
-        if first_val > 0:
-            change_pct = round((latest_val - first_val) / first_val * 100, 1)
-            trend[key] = {
-                "first": first_val,
-                "latest": latest_val,
-                "change_pct": change_pct,
-            }
-
-    moods_over_time = [entry.get("mood", {}).get("primary_mood", "unknown") for entry in history]
-
-    return {
-        "available": True,
-        "turns_analyzed": len(history),
-        "feature_trends": trend,
-        "mood_sequence": moods_over_time,
-    }
+        async with _db_session_factory() as db:
+            turn = VoiceAnalysisTurn(
+                room_name=room_name,
+                turn_number=turn_number,
+                features=features,
+                mood=mood,
+            )
+            db.add(turn)
+            await db.commit()
+    except Exception as e:
+        log.warning("Failed to persist voice analysis turn: %s", e)
 
 
 # ---------------------------------------------------------------------------
@@ -164,12 +145,22 @@ async def get_voice_trend(
 class VoiceAnalysisCapability(BaseCapability):
     """Analyzes voice acoustics per turn to infer mood and psychological state.
 
+    All state is per-instance — each session gets its own capability instance
+    with isolated analysis history. Tools are created as closures that capture
+    the instance, so concurrent sessions never cross-contaminate.
+
     Plugs into any persona. Provides:
     - Per-turn mood inference from pitch, jitter, shimmer, speech rate
     - Accumulated history for trend analysis
     - Two tools for the LLM: get_voice_analysis, get_voice_trend
-    - Context prompt injected before each LLM turn
+    - Optional DB persistence when a database is configured
     """
+
+    def __init__(self, room_name: str = "") -> None:
+        super().__init__(room_name=room_name)
+        self.latest_analysis: dict[str, Any] = {}
+        self.analysis_history: deque[dict[str, Any]] = deque(maxlen=20)
+        self.turn_count: int = 0
 
     @property
     def name(self) -> str:
@@ -189,17 +180,22 @@ class VoiceAnalysisCapability(BaseCapability):
             "mood": mood,
         }
 
-        _latest_analysis.clear()
-        _latest_analysis.update(analysis)
-        _analysis_history.append(analysis)
+        self.latest_analysis = analysis
+        self.analysis_history.append(analysis)
+        self.turn_count += 1
 
         log.info(
-            "Voice analysis: mood=%s confidence=%.2f pitch=%.0f rate=%.1f",
+            "Voice analysis [%s turn %d]: mood=%s confidence=%.2f pitch=%.0f rate=%.1f",
+            self.room_name or "unknown",
+            self.turn_count,
             mood["primary_mood"],
             mood["confidence"],
             features.get("pitch_mean", 0),
             features.get("speech_rate", 0),
         )
+
+        # Persist to DB (non-blocking, best-effort)
+        await _persist_turn(self.room_name, self.turn_count, features, mood)
 
         return analysis
 
@@ -226,4 +222,55 @@ class VoiceAnalysisCapability(BaseCapability):
         )
 
     def get_tools(self) -> list:
+        """Create tools as closures that capture this instance's state."""
+        cap = self
+
+        @function_tool()
+        async def get_voice_analysis(
+            context: RunContext,
+        ) -> dict[str, Any]:
+            """Get the latest voice analysis of the current speaker, including mood indicators,
+            pitch, speech rate, and vocal quality. Use this to understand how the person
+            is feeling based on how they sound, not just what they say."""
+            if not cap.latest_analysis:
+                return {"available": False, "reason": "No voice data analyzed yet."}
+            return {"available": True, **cap.latest_analysis}
+
+        @function_tool()
+        async def get_voice_trend(
+            context: RunContext,
+        ) -> dict[str, Any]:
+            """Get the trend of the speaker's voice across the conversation so far.
+            Shows how their mood and vocal features have changed over multiple turns.
+            Useful for noticing if someone is becoming more anxious or calming down."""
+            if len(cap.analysis_history) < 2:
+                return {"available": False, "reason": "Need at least 2 voice samples for trend."}
+
+            history = list(cap.analysis_history)
+            first = history[0]
+            latest = history[-1]
+
+            trend = {}
+            for key in ["pitch_mean", "speech_rate", "jitter", "intensity_mean"]:
+                first_val = first.get("features", {}).get(key, 0)
+                latest_val = latest.get("features", {}).get(key, 0)
+                if first_val > 0:
+                    change_pct = round((latest_val - first_val) / first_val * 100, 1)
+                    trend[key] = {
+                        "first": first_val,
+                        "latest": latest_val,
+                        "change_pct": change_pct,
+                    }
+
+            moods_over_time = [
+                entry.get("mood", {}).get("primary_mood", "unknown") for entry in history
+            ]
+
+            return {
+                "available": True,
+                "turns_analyzed": len(history),
+                "feature_trends": trend,
+                "mood_sequence": moods_over_time,
+            }
+
         return [get_voice_analysis, get_voice_trend]

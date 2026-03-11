@@ -126,6 +126,18 @@ class VoiceFeature(Base):
     session: Mapped["Session"] = relationship(back_populates="voice_features")
 
 
+class VoiceAnalysisTurn(Base):
+    """Per-turn voice analysis from LiveKit sessions — features + mood inference."""
+
+    __tablename__ = "voice_analysis_turns"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    room_name: Mapped[str] = mapped_column(String(255), index=True)
+    turn_number: Mapped[int] = mapped_column(Integer)
+    features: Mapped[dict] = mapped_column(JSONB, default=dict)
+    mood: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class Visitor(Base):
     """Building visitor — tracked by receptionist for personalised return visits."""
 

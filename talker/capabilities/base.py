@@ -14,6 +14,9 @@ class BaseCapability(ABC):
     for the LLM to query their accumulated results.
     """
 
+    def __init__(self, room_name: str = "") -> None:
+        self.room_name = room_name
+
     @property
     @abstractmethod
     def name(self) -> str:

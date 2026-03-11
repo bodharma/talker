@@ -12,7 +12,7 @@ from livekit.plugins.openai import LLM
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 from talker.capabilities.base import BaseCapability
-from talker.capabilities.voice_analysis import VoiceAnalysisCapability
+from talker.capabilities.voice_analysis import VoiceAnalysisCapability, set_voice_db_factory
 from talker.config import get_settings
 from talker.personas.assessor import AssessorAgent
 from talker.personas.receptionist import ReceptionistAgent, set_db_session_factory
@@ -20,14 +20,15 @@ from talker.services.database import create_session_factory
 
 load_dotenv()
 
-# Wire up DB for visitor tracking
+# Wire up DB for visitor tracking + voice analysis persistence
 _settings = get_settings()
 if _settings.database_url:
     try:
         _db_factory = create_session_factory(_settings)
         set_db_session_factory(_db_factory)
+        set_voice_db_factory(_db_factory)
     except Exception:
-        pass  # DB not available — visitor tracking disabled
+        pass  # DB not available — visitor tracking and voice persistence disabled
 
 
 # ---------------------------------------------------------------------------
@@ -66,7 +67,7 @@ PERSONAS: dict[str, dict[str, Any]] = {
 }
 
 
-def _build_agent(persona_name: str) -> tuple[Agent, list[BaseCapability], str]:
+def _build_agent(persona_name: str, room_name: str = "") -> tuple[Agent, list[BaseCapability], str]:
     """Build an agent instance with its capabilities wired in."""
     config = PERSONAS.get(persona_name)
     if not config:
@@ -77,7 +78,7 @@ def _build_agent(persona_name: str) -> tuple[Agent, list[BaseCapability], str]:
         )
         config = PERSONAS["receptionist"]
 
-    capabilities = [cap_cls() for cap_cls in config["capabilities"]]
+    capabilities = [cap_cls(room_name=room_name) for cap_cls in config["capabilities"]]
 
     # Collect capability tools to pass through the public constructor
     cap_tools = []
@@ -120,7 +121,7 @@ async def _process_audio_stream(
             for cap in capabilities:
                 try:
                     await cap.process_audio(audio, sample_rate)
-                    # Results are stored in the capability's module-level state
+                    # Results are stored in the capability instance's state
                     # and exposed via get_voice_analysis / get_voice_trend tools
                     # that the LLM can call on demand.
                 except Exception as e:
@@ -148,7 +149,7 @@ def _persona_from_room(room_name: str) -> str:
 @server.rtc_session(agent_name="talker")
 async def talker_session(ctx: agents.JobContext):
     persona = _persona_from_room(ctx.room.name)
-    agent, capabilities, greeting = _build_agent(persona)
+    agent, capabilities, greeting = _build_agent(persona, room_name=ctx.room.name)
 
     # Use OpenRouter for LLM if configured, otherwise fall back to OpenAI
     settings = get_settings()

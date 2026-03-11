@@ -6,10 +6,6 @@ import pytest
 from talker.capabilities.base import BaseCapability
 from talker.capabilities.voice_analysis import (
     VoiceAnalysisCapability,
-    _analysis_history,
-    _latest_analysis,
-    get_voice_analysis,
-    get_voice_trend,
     infer_mood,
 )
 
@@ -96,6 +92,10 @@ class TestVoiceAnalysisCapability:
         cap = VoiceAnalysisCapability()
         assert isinstance(cap, BaseCapability)
 
+    def test_room_name_stored(self):
+        cap = VoiceAnalysisCapability(room_name="talker-receptionist-abc123")
+        assert cap.room_name == "talker-receptionist-abc123"
+
     @pytest.mark.asyncio
     async def test_process_audio_returns_features_and_mood(self):
         cap = VoiceAnalysisCapability()
@@ -110,16 +110,31 @@ class TestVoiceAnalysisCapability:
         assert "primary_mood" in result["mood"]
 
     @pytest.mark.asyncio
-    async def test_process_audio_updates_latest(self):
+    async def test_process_audio_updates_instance_state(self):
         cap = VoiceAnalysisCapability()
         sr = 16000
         t = np.linspace(0, 1.0, sr)
         audio = (np.sin(2 * np.pi * 440 * t) * 0.5).astype(np.float64)
 
-        _analysis_history.clear()
         await cap.process_audio(audio, sr)
-        assert _latest_analysis != {}
-        assert len(_analysis_history) >= 1
+        assert cap.latest_analysis != {}
+        assert len(cap.analysis_history) >= 1
+        assert cap.turn_count == 1
+
+    @pytest.mark.asyncio
+    async def test_separate_instances_have_isolated_state(self):
+        """Concurrent sessions must not share state."""
+        cap1 = VoiceAnalysisCapability(room_name="room-1")
+        cap2 = VoiceAnalysisCapability(room_name="room-2")
+
+        sr = 16000
+        t = np.linspace(0, 1.0, sr)
+        audio = (np.sin(2 * np.pi * 440 * t) * 0.5).astype(np.float64)
+
+        await cap1.process_audio(audio, sr)
+        assert cap1.turn_count == 1
+        assert cap2.turn_count == 0
+        assert cap2.latest_analysis == {}
 
     def test_get_context_prompt(self):
         cap = VoiceAnalysisCapability()
@@ -148,48 +163,53 @@ class TestVoiceAnalysisCapability:
 
 
 # ---------------------------------------------------------------------------
-# Tool functions
+# Tool functions (now per-instance closures)
 # ---------------------------------------------------------------------------
 
 
 class TestVoiceAnalysisTools:
     @pytest.mark.asyncio
     async def test_get_voice_analysis_no_data(self):
-        import talker.capabilities.voice_analysis as va
-        va._latest_analysis = {}
+        cap = VoiceAnalysisCapability()
+        tools = cap.get_tools()
+        get_voice_analysis = tools[0]
         result = await get_voice_analysis._func(None)
         assert result["available"] is False
 
     @pytest.mark.asyncio
     async def test_get_voice_analysis_with_data(self):
-        import talker.capabilities.voice_analysis as va
-        va._latest_analysis = {
+        cap = VoiceAnalysisCapability()
+        cap.latest_analysis = {
             "features": {"pitch_mean": 180},
             "mood": {"primary_mood": "calm", "confidence": 0.8, "moods": []},
         }
+        tools = cap.get_tools()
+        get_voice_analysis = tools[0]
         result = await get_voice_analysis._func(None)
         assert result["available"] is True
         assert "features" in result
 
     @pytest.mark.asyncio
     async def test_get_voice_trend_insufficient_data(self):
-        import talker.capabilities.voice_analysis as va
-        va._analysis_history.clear()
+        cap = VoiceAnalysisCapability()
+        tools = cap.get_tools()
+        get_voice_trend = tools[1]
         result = await get_voice_trend._func(None)
         assert result["available"] is False
 
     @pytest.mark.asyncio
     async def test_get_voice_trend_with_data(self):
-        import talker.capabilities.voice_analysis as va
-        va._analysis_history.clear()
-        va._analysis_history.append({
+        cap = VoiceAnalysisCapability()
+        cap.analysis_history.append({
             "features": {"pitch_mean": 200, "speech_rate": 3.0, "jitter": 0.02, "intensity_mean": 70},
             "mood": {"primary_mood": "anxious"},
         })
-        va._analysis_history.append({
+        cap.analysis_history.append({
             "features": {"pitch_mean": 160, "speech_rate": 2.5, "jitter": 0.01, "intensity_mean": 65},
             "mood": {"primary_mood": "calm"},
         })
+        tools = cap.get_tools()
+        get_voice_trend = tools[1]
         result = await get_voice_trend._func(None)
         assert result["available"] is True
         assert result["turns_analyzed"] == 2

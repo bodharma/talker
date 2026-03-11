@@ -197,9 +197,11 @@ class TestReceptionistAgent:
         assert len(agent.tools) == 7
 
     def test_agent_accepts_extra_tools(self):
-        from talker.capabilities.voice_analysis import get_voice_analysis
-        agent = ReceptionistAgent(extra_tools=[get_voice_analysis])
-        assert len(agent.tools) == 8
+        from talker.capabilities.voice_analysis import VoiceAnalysisCapability
+        cap = VoiceAnalysisCapability()
+        extra = cap.get_tools()
+        agent = ReceptionistAgent(extra_tools=extra)
+        assert len(agent.tools) == 9  # 7 base + 2 voice analysis tools
 
 
 # ---------------------------------------------------------------------------
