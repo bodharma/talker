@@ -1,6 +1,7 @@
 import logging
+from dataclasses import dataclass
 
-from langfuse import Langfuse
+from langfuse import Langfuse, propagate_attributes
 
 from talker.config import Settings
 
@@ -26,6 +27,12 @@ def get_langfuse() -> Langfuse | None:
     return _langfuse
 
 
+@dataclass
+class TraceRef:
+    """Lightweight reference to a Langfuse trace, exposing just the id."""
+    id: str
+
+
 def create_trace(
     *,
     session_id: str,
@@ -33,28 +40,43 @@ def create_trace(
     user_id: str | None = None,
     user_email: str | None = None,
     user_name: str | None = None,
-):
+) -> TraceRef | None:
     """Create a Langfuse trace for an agent interaction.
 
-    Returns the trace object (or None if Langfuse is not configured).
+    Returns a TraceRef with .id (or None if Langfuse is not configured).
     The trace_id can be used later to attach scores.
+
+    Langfuse v4 uses OpenTelemetry-based span tracing. We create a root
+    span with propagated attributes (user_id, session_id) to register
+    the trace with all metadata.
     """
     lf = get_langfuse()
     if lf is None:
         return None
 
-    kwargs: dict = {
-        "name": f"talker-{agent_name}",
-        "session_id": session_id,
-        "metadata": {"agent": agent_name},
-    }
-    if user_id:
-        kwargs["user_id"] = user_id
-    if user_email or user_name:
-        kwargs["metadata"]["user_email"] = user_email
-        kwargs["metadata"]["user_name"] = user_name
+    trace_id = Langfuse.create_trace_id()
+    metadata = {"agent": agent_name}
+    if user_email:
+        metadata["user_email"] = user_email
+    if user_name:
+        metadata["user_name"] = user_name
 
-    return lf.trace(**kwargs)
+    with lf.start_as_current_observation(
+        name=f"talker-{agent_name}",
+        trace_context={"trace_id": trace_id},
+        input={"session_id": session_id, "agent": agent_name},
+        metadata=metadata,
+    ):
+        with propagate_attributes(
+            user_id=user_id,
+            session_id=session_id,
+            metadata=metadata,
+            trace_name=f"talker-{agent_name}",
+        ):
+            pass  # span registers the trace; no work needed inside
+
+    lf.flush()
+    return TraceRef(id=trace_id)
 
 
 def create_score(
