@@ -26,6 +26,54 @@
     </ul>
 </div>
 
+{% if trace_id %}
+<div class="card" id="feedback-card">
+    <h2>How was your experience?</h2>
+    <p style="color:var(--text-muted);margin-bottom:0.75rem;">Your feedback helps us improve</p>
+    <div id="feedback-stars" style="display:flex;justify-content:center;gap:0.5rem;margin-bottom:0.75rem;">
+        {% for i in range(1, 6) %}
+        <button onclick="selectRating({{ i }})" class="star-btn" data-star="{{ i }}"
+                style="background:none;border:none;font-size:2rem;cursor:pointer;opacity:0.3;transition:opacity 0.15s;">&#9733;</button>
+        {% endfor %}
+    </div>
+    <textarea id="feedback-comment" placeholder="Any comments? (optional)"
+              style="width:100%;max-width:400px;margin:0 auto;display:block;padding:0.5rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text);resize:vertical;min-height:60px;"></textarea>
+    <button id="feedback-submit" onclick="submitFeedback()" class="btn btn-primary"
+            style="margin-top:0.75rem;display:none;">Submit Feedback</button>
+    <div id="feedback-thanks" style="display:none;color:var(--accent);font-weight:600;margin-top:0.5rem;">Thank you for your feedback!</div>
+</div>
+<script>
+let selectedRating = 0;
+const TRACE_ID = "{{ trace_id }}";
+
+function selectRating(n) {
+    selectedRating = n;
+    document.querySelectorAll('.star-btn').forEach(btn => {
+        btn.style.opacity = parseInt(btn.dataset.star) <= n ? '1' : '0.3';
+    });
+    document.getElementById('feedback-submit').style.display = 'inline-block';
+}
+
+async function submitFeedback() {
+    const comment = document.getElementById('feedback-comment').value;
+    const btn = document.getElementById('feedback-submit');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    try {
+        await fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trace_id: TRACE_ID, rating: selectedRating, comment }),
+        });
+    } catch {}
+    document.getElementById('feedback-stars').style.display = 'none';
+    document.getElementById('feedback-comment').style.display = 'none';
+    btn.style.display = 'none';
+    document.getElementById('feedback-thanks').style.display = 'block';
+}
+</script>
+{% endif %}
+
 <div class="card" style="text-align:center;">
     <a href="/" class="btn btn-primary">Return Home</a>
     <a href="/report/{{ session_id }}" class="btn btn-secondary" style="margin-left:0.5rem;">Download Report</a>

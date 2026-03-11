@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from livekit import api
 
 from talker.config import get_settings
+from talker.services.tracing import create_trace, create_score
 
 templates = Jinja2Templates(directory="talker/templates")
 router = APIRouter()
@@ -61,15 +62,16 @@ async def create_livekit_token(request: Request):
     participant_name = body.get("name", "User")
 
     # Assessor requires authentication
+    user_id = request.session.get("user_id")
+    user_email = request.session.get("user_email")
+    user_name = request.session.get("user_name")
     if persona in _AUTH_REQUIRED_PERSONAS:
-        user_id = request.session.get("user_id")
         if not user_id:
             return JSONResponse(
                 {"error": "Authentication required for this persona"},
                 status_code=401,
             )
-        # Use real user name if available
-        participant_name = request.session.get("user_name", participant_name)
+        participant_name = user_name or participant_name
 
     room_name = f"talker-{persona}-{uuid.uuid4().hex[:8]}"
     participant_id = f"user-{uuid.uuid4().hex[:8]}"
@@ -107,6 +109,16 @@ async def create_livekit_token(request: Request):
     finally:
         await lkapi.aclose()
 
+    # Create Langfuse trace for this voice session
+    trace = create_trace(
+        session_id=room_name,
+        agent_name=persona,
+        user_id=str(user_id) if user_id else participant_id,
+        user_email=user_email,
+        user_name=user_name or participant_name,
+    )
+    trace_id = trace.id if trace else None
+
     log.info("LiveKit token generated: room=%s persona=%s", room_name, persona)
 
     return JSONResponse({
@@ -114,4 +126,29 @@ async def create_livekit_token(request: Request):
         "room": room_name,
         "livekit_url": settings.livekit_url,
         "participant_id": participant_id,
+        "trace_id": trace_id,
     })
+
+
+@router.post("/api/feedback")
+async def submit_feedback(request: Request):
+    """Receive user feedback score and send to Langfuse."""
+    body = await request.json()
+    trace_id = body.get("trace_id")
+    rating = body.get("rating")  # 1-5
+    comment = body.get("comment", "")
+
+    if not trace_id or rating is None:
+        return JSONResponse({"error": "trace_id and rating required"}, status_code=400)
+
+    # Normalize 1-5 star rating to 0-1 for Langfuse
+    normalized = (float(rating) - 1) / 4.0
+
+    create_score(
+        trace_id=trace_id,
+        name="user-feedback",
+        value=normalized,
+        comment=comment or f"{rating}/5 stars",
+    )
+
+    return JSONResponse({"ok": True})

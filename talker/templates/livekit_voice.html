@@ -228,7 +228,27 @@
         </div>
         <button id="mic-btn" disabled onclick="toggleMic()">&#127908;</button>
         <div id="status">Connecting to session...</div>
+        <button id="end-btn" onclick="endSession()" style="display:none;background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.85rem;margin-top:0.25rem;">End session</button>
     </div>
+    <!-- Feedback widget — shown on disconnect -->
+    <div id="feedback-panel" style="display:none;">
+        <div class="card" style="padding:1rem;text-align:center;">
+            <h3 style="margin-bottom:0.5rem;">How was your experience?</h3>
+            <div id="fb-stars" style="display:flex;justify-content:center;gap:0.5rem;margin-bottom:0.75rem;">
+                <button onclick="selectRating(1)" class="star-btn" data-star="1" style="background:none;border:none;font-size:1.8rem;cursor:pointer;opacity:0.3;transition:opacity 0.15s;">&#9733;</button>
+                <button onclick="selectRating(2)" class="star-btn" data-star="2" style="background:none;border:none;font-size:1.8rem;cursor:pointer;opacity:0.3;transition:opacity 0.15s;">&#9733;</button>
+                <button onclick="selectRating(3)" class="star-btn" data-star="3" style="background:none;border:none;font-size:1.8rem;cursor:pointer;opacity:0.3;transition:opacity 0.15s;">&#9733;</button>
+                <button onclick="selectRating(4)" class="star-btn" data-star="4" style="background:none;border:none;font-size:1.8rem;cursor:pointer;opacity:0.3;transition:opacity 0.15s;">&#9733;</button>
+                <button onclick="selectRating(5)" class="star-btn" data-star="5" style="background:none;border:none;font-size:1.8rem;cursor:pointer;opacity:0.3;transition:opacity 0.15s;">&#9733;</button>
+            </div>
+            <textarea id="fb-comment" placeholder="Any comments? (optional)"
+                      style="width:100%;max-width:360px;padding:0.5rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text);resize:vertical;min-height:50px;"></textarea>
+            <br>
+            <button id="fb-submit" onclick="submitFeedback()" class="btn btn-primary" style="margin-top:0.5rem;display:none;">Submit</button>
+            <div id="fb-thanks" style="display:none;color:var(--accent);font-weight:600;margin-top:0.5rem;">Thank you for your feedback!</div>
+        </div>
+    </div>
+
     <div class="fallback-link">
         <a href="/">Back to home</a>
     </div>
@@ -244,6 +264,8 @@ const LIVEKIT_URL = "{{ livekit_url }}";
 let room = null;
 let micEnabled = false;
 let audioElements = [];
+let traceId = null;
+let selectedRating = 0;
 
 const micBtn = document.getElementById("mic-btn");
 const statusEl = document.getElementById("status");
@@ -296,7 +318,8 @@ async function connect() {
             throw new Error(err.error || "Failed to get token");
         }
 
-        const { token, room: roomName, livekit_url } = await resp.json();
+        const { token, room: roomName, livekit_url, trace_id } = await resp.json();
+        traceId = trace_id;
 
         // Create and connect to room
         const LivekitClient = window.LivekitClient;
@@ -327,6 +350,9 @@ async function connect() {
             setBadge("error", "Disconnected");
             setStatus("Session ended");
             micBtn.disabled = true;
+            if (traceId) {
+                document.getElementById("feedback-panel").style.display = "block";
+            }
         });
 
         room.on(LivekitClient.RoomEvent.DataReceived, (payload, participant) => {
@@ -381,6 +407,7 @@ async function connect() {
         setBadge("connected", "Connected");
         setStatus("Connected — tap mic to speak");
         micBtn.disabled = false;
+        document.getElementById("end-btn").style.display = "inline-block";
 
         addSystemMessage(`Session started (${PERSONA})`);
 
@@ -410,6 +437,39 @@ async function toggleMic() {
         console.error("Mic toggle failed:", err);
         setStatus(`Mic error: ${err.message}`);
     }
+}
+
+async function endSession() {
+    if (room) {
+        await room.disconnect();
+    }
+    document.getElementById("end-btn").style.display = "none";
+}
+
+function selectRating(n) {
+    selectedRating = n;
+    document.querySelectorAll('.star-btn').forEach(btn => {
+        btn.style.opacity = parseInt(btn.dataset.star) <= n ? '1' : '0.3';
+    });
+    document.getElementById('fb-submit').style.display = 'inline-block';
+}
+
+async function submitFeedback() {
+    const comment = document.getElementById('fb-comment').value;
+    const btn = document.getElementById('fb-submit');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    try {
+        await fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trace_id: traceId, rating: selectedRating, comment }),
+        });
+    } catch {}
+    document.getElementById('fb-stars').style.display = 'none';
+    document.getElementById('fb-comment').style.display = 'none';
+    btn.style.display = 'none';
+    document.getElementById('fb-thanks').style.display = 'block';
 }
 
 // Auto-connect on load

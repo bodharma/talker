@@ -12,6 +12,7 @@ from talker.models.schemas import SessionState
 from talker.services.instruments import InstrumentLoader
 from talker.routes.deps import verify_auth
 from talker.services.session_repo import SessionRepository
+from talker.services.tracing import create_trace
 
 templates = Jinja2Templates(directory="talker/templates")
 router = APIRouter(prefix="/assess")
@@ -347,6 +348,17 @@ async def assess_summary(request: Request, session_id: str):
         await repo.update_state(sid, SessionState.COMPLETED)
         await db.commit()
 
+    # Create Langfuse trace for the completed session
+    user_id = request.session.get("user_id")
+    trace = create_trace(
+        session_id=session_id,
+        agent_name="assessor",
+        user_id=str(user_id) if user_id else None,
+        user_email=request.session.get("user_email"),
+        user_name=request.session.get("user_name"),
+    )
+    trace_id = trace.id if trace else None
+
     return templates.TemplateResponse(
         request=request,
         name="assess_summary.html",
@@ -354,5 +366,6 @@ async def assess_summary(request: Request, session_id: str):
             "session_id": session_id,
             "results": results,
             "recommendations": recommendations,
+            "trace_id": trace_id,
         },
     )

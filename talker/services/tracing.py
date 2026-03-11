@@ -26,16 +26,59 @@ def get_langfuse() -> Langfuse | None:
     return _langfuse
 
 
-def create_trace(session_id: int, agent_name: str):
-    """Create a Langfuse trace for an agent interaction."""
+def create_trace(
+    *,
+    session_id: str,
+    agent_name: str,
+    user_id: str | None = None,
+    user_email: str | None = None,
+    user_name: str | None = None,
+):
+    """Create a Langfuse trace for an agent interaction.
+
+    Returns the trace object (or None if Langfuse is not configured).
+    The trace_id can be used later to attach scores.
+    """
     lf = get_langfuse()
     if lf is None:
         return None
-    return lf.trace(
-        name=f"talker-{agent_name}",
-        session_id=str(session_id),
-        metadata={"agent": agent_name},
-    )
+
+    kwargs: dict = {
+        "name": f"talker-{agent_name}",
+        "session_id": session_id,
+        "metadata": {"agent": agent_name},
+    }
+    if user_id:
+        kwargs["user_id"] = user_id
+    if user_email or user_name:
+        kwargs["metadata"]["user_email"] = user_email
+        kwargs["metadata"]["user_name"] = user_name
+
+    return lf.trace(**kwargs)
+
+
+def create_score(
+    *,
+    trace_id: str,
+    name: str = "user-feedback",
+    value: float,
+    comment: str | None = None,
+):
+    """Attach a user feedback score to a Langfuse trace."""
+    lf = get_langfuse()
+    if lf is None:
+        return
+    try:
+        lf.create_score(
+            trace_id=trace_id,
+            name=name,
+            value=value,
+            data_type="NUMERIC",
+            comment=comment,
+        )
+        lf.flush()
+    except Exception as e:
+        log.warning("Failed to create Langfuse score: %s", e)
 
 
 def get_prompt(name: str, fallback: str) -> str:
