@@ -1,3 +1,74 @@
+x-shared-env: &shared-env
+  # Database
+  DATABASE_URL: postgresql+asyncpg://talker:${POSTGRES_PASSWORD:-talker}@postgres:5432/talker
+
+  # App
+  APP_SECRET_KEY: ${APP_SECRET_KEY:-change-me-in-production}
+  BASE_URL: ${BASE_URL:-http://localhost:8000}
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+  DEBUG: ${DEBUG:-false}
+
+  # Auth — admin bootstrap (creates admin user on first startup)
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+
+  # Auth — OAuth
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
+  APPLE_CLIENT_SECRET: ${APPLE_CLIENT_SECRET:-}
+
+  # LLM — OpenRouter
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+  OPENROUTER_MODEL_CONVERSATION: ${OPENROUTER_MODEL_CONVERSATION:-anthropic/claude-sonnet-4-20250514}
+  OPENROUTER_MODEL_SCREENER: ${OPENROUTER_MODEL_SCREENER:-anthropic/claude-haiku-4-20250414}
+
+  # LLM — Ollama fallback
+  LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
+  OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-llama3.2}
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://localhost:11434}
+
+  # RAG / Embeddings
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-openai}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+  OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+  RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-512}
+  RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-64}
+  RAG_TOP_K: ${RAG_TOP_K:-5}
+
+  # Langfuse (observability)
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+  LANGFUSE_HOST: ${LANGFUSE_HOST:-https://cloud.langfuse.com}
+
+  # Voice
+  VOICE_PROVIDER: ${VOICE_PROVIDER:-local}
+  VOICE_LOCAL_STT_MODEL: ${VOICE_LOCAL_STT_MODEL:-base}
+  VOICE_LOCAL_TTS_MODEL: ${VOICE_LOCAL_TTS_MODEL:-en_US-amy-medium}
+  VOICE_LOCAL_MODELS_DIR: ${VOICE_LOCAL_MODELS_DIR:-models/voice}
+  DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+  DEEPGRAM_MODEL: ${DEEPGRAM_MODEL:-nova-2}
+  ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+  ELEVENLABS_MODEL: ${ELEVENLABS_MODEL:-eleven_multilingual_v2}
+  ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
+
+  # LiveKit (real-time voice personas)
+  LIVEKIT_URL: ${LIVEKIT_URL:-}
+  LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+  LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+
+  # LiveKit pipeline — STT/LLM/TTS models
+  LIVEKIT_STT_MODEL: ${LIVEKIT_STT_MODEL:-deepgram/nova-3:multi}
+  LIVEKIT_LLM_MODEL: ${LIVEKIT_LLM_MODEL:-openai/gpt-4.1-mini}
+  LIVEKIT_TTS_MODEL: ${LIVEKIT_TTS_MODEL:-cartesia/sonic-3:9626c31c-bec5-4cca-baa8-f8ba9e84c8bc}
+
+  # Cartesia TTS (LiveKit pipeline)
+  CARTESIA_API_KEY: ${CARTESIA_API_KEY:-}
+
+  # Weather API (receptionist persona)
+  OPENWEATHERMAP_API_KEY: ${OPENWEATHERMAP_API_KEY:-}
+
 services:
   app:
     platform: linux/amd64
@@ -5,75 +76,18 @@ services:
     ports:
       - "8090:8000"
     environment:
-      # Database
-      DATABASE_URL: postgresql+asyncpg://talker:${POSTGRES_PASSWORD:-talker}@postgres:5432/talker
+      <<: *shared-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
-      # App
-      APP_SECRET_KEY: ${APP_SECRET_KEY:-change-me-in-production}
-      BASE_URL: ${BASE_URL:-http://localhost:8000}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
-      DEBUG: ${DEBUG:-false}
-
-      # Auth — admin bootstrap (creates admin user on first startup)
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
-
-      # Auth — OAuth
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
-      APPLE_CLIENT_SECRET: ${APPLE_CLIENT_SECRET:-}
-
-      # LLM — OpenRouter
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_MODEL_CONVERSATION: ${OPENROUTER_MODEL_CONVERSATION:-anthropic/claude-sonnet-4-20250514}
-      OPENROUTER_MODEL_SCREENER: ${OPENROUTER_MODEL_SCREENER:-anthropic/claude-haiku-4-20250414}
-
-      # LLM — Ollama fallback
-      LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
-      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-llama3.2}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://localhost:11434}
-
-      # RAG / Embeddings
-      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-openai}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
-      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
-      RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-512}
-      RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-64}
-      RAG_TOP_K: ${RAG_TOP_K:-5}
-
-      # Langfuse (observability)
-      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
-      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
-      LANGFUSE_HOST: ${LANGFUSE_HOST:-https://cloud.langfuse.com}
-
-      # Voice
-      VOICE_PROVIDER: ${VOICE_PROVIDER:-local}
-      VOICE_LOCAL_STT_MODEL: ${VOICE_LOCAL_STT_MODEL:-base}
-      VOICE_LOCAL_TTS_MODEL: ${VOICE_LOCAL_TTS_MODEL:-en_US-amy-medium}
-      VOICE_LOCAL_MODELS_DIR: ${VOICE_LOCAL_MODELS_DIR:-models/voice}
-      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
-      DEEPGRAM_MODEL: ${DEEPGRAM_MODEL:-nova-2}
-      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
-      ELEVENLABS_MODEL: ${ELEVENLABS_MODEL:-eleven_multilingual_v2}
-      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
-
-      # LiveKit (real-time voice personas)
-      LIVEKIT_URL: ${LIVEKIT_URL:-}
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
-
-      # LiveKit pipeline — STT/LLM/TTS models
-      LIVEKIT_STT_MODEL: ${LIVEKIT_STT_MODEL:-deepgram/nova-3:multi}
-      LIVEKIT_LLM_MODEL: ${LIVEKIT_LLM_MODEL:-openai/gpt-4.1-mini}
-      LIVEKIT_TTS_MODEL: ${LIVEKIT_TTS_MODEL:-cartesia/sonic-3:9626c31c-bec5-4cca-baa8-f8ba9e84c8bc}
-
-      # Cartesia TTS (LiveKit pipeline)
-      CARTESIA_API_KEY: ${CARTESIA_API_KEY:-}
-
-      # Weather API (receptionist persona)
-      OPENWEATHERMAP_API_KEY: ${OPENWEATHERMAP_API_KEY:-}
+  agent:
+    platform: linux/amd64
+    build: .
+    command: ["python", "-m", "talker.livekit_agent", "--persona", "receptionist", "start"]
+    environment:
+      <<: *shared-env
     depends_on:
       postgres:
         condition: service_healthy
