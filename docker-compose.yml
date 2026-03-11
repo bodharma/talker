@@ -3,7 +3,7 @@ services:
     platform: linux/amd64
     build: .
     ports:
-      - "8000:8000"
+      - "8090:8000"
     environment:
       # Database
       DATABASE_URL: postgresql+asyncpg://talker:${POSTGRES_PASSWORD:-talker}@postgres:5432/talker
