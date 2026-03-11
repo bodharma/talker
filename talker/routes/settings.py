@@ -67,5 +67,8 @@ async def settings_page(request: Request):
             "current_tts_model": current_tts,
             "deepgram_configured": bool(settings.deepgram_api_key),
             "elevenlabs_configured": bool(settings.elevenlabs_api_key),
+            "rag_configured": bool(settings.openai_api_key),
+            "embedding_provider": settings.embedding_provider,
+            "embedding_model": settings.embedding_model,
         },
     )

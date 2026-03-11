@@ -47,3 +47,12 @@ Respond conversationally. Keep responses concise (2-3 sentences max) and end wit
         screening_summary = "\n".join(summaries) if summaries else "No screening results available."
 
         return self.SYSTEM_PROMPT_TEMPLATE.format(screening_summary=screening_summary)
+
+    def build_system_prompt_with_rag(
+        self, context: ConversationContext, rag_context: str
+    ) -> str:
+        """Build system prompt enhanced with RAG-retrieved knowledge."""
+        from talker.agents.rag_tools import build_rag_enhanced_prompt
+
+        base = self.build_system_prompt(context)
+        return build_rag_enhanced_prompt(base, rag_context)

@@ -98,3 +98,14 @@ def get_score_context(
         )
 
     return context
+
+
+def build_clinical_query(
+    symptoms: list[str],
+    instrument_id: str | None = None,
+) -> str:
+    """Build a query for RAG retrieval of clinical context."""
+    query = f"Clinical information about: {', '.join(symptoms)}"
+    if instrument_id:
+        query += f" (related to {instrument_id.upper()} screening)"
+    return query

@@ -39,6 +39,16 @@ class Settings(BaseSettings):
     elevenlabs_model: str = "eleven_multilingual_v2"
     elevenlabs_voice_id: str = ""
 
+    # RAG
+    embedding_provider: str = "openai"  # "openai" or "ollama"
+    openai_api_key: str = ""
+    embedding_model: str = "text-embedding-3-small"
+    ollama_embedding_model: str = "nomic-embed-text"
+    ollama_base_url: str = "http://localhost:11434"
+    rag_chunk_size: int = 512
+    rag_chunk_overlap: int = 64
+    rag_top_k: int = 5
+
     # App
     app_secret_key: str = "change-me-in-production"
     admin_token: str = "change-me-in-production"

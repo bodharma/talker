@@ -7,8 +7,9 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-from talker.models.db import Base
 from talker.config import Settings
+from talker.models.db import Base
+import talker.models.knowledge  # noqa: F401 — register knowledge models
 
 config = context.config
 

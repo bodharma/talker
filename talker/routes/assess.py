@@ -186,7 +186,11 @@ async def assess_conversation(request: Request, session_id: str):
 
 
 async def _get_llm_response(
-    orch: Orchestrator, session, messages: list[dict], user_message: str
+    orch: Orchestrator,
+    session,
+    messages: list[dict],
+    user_message: str,
+    db=None,
 ) -> str:
     settings = get_settings()
     if not settings.openrouter_api_key:
@@ -196,7 +200,25 @@ async def _get_llm_response(
         )
 
     ctx = orch.get_conversation_context(session)
-    system_prompt = orch.conversation.build_system_prompt(ctx)
+
+    # RAG enhancement
+    rag_context = ""
+    if db and settings.openai_api_key:
+        try:
+            from talker.services.embeddings import EmbeddingService
+            from talker.services.rag import RAGService
+
+            emb = EmbeddingService(settings)
+            rag = RAGService(emb)
+            results = await rag.retrieve(user_message, db, top_k=settings.rag_top_k)
+            rag_context = RAGService.format_context(results)
+        except Exception:
+            pass  # RAG is best-effort, conversation works without it
+
+    if rag_context:
+        system_prompt = orch.conversation.build_system_prompt_with_rag(ctx, rag_context)
+    else:
+        system_prompt = orch.conversation.build_system_prompt(ctx)
 
     model = OpenAIChatModel(
         settings.openrouter_model_conversation,
@@ -260,7 +282,7 @@ async def assess_chat(
         ]
         messages.append({"role": "user", "content": message})
 
-        response = await _get_llm_response(orch, session, messages, message)
+        response = await _get_llm_response(orch, session, messages, message, db=db)
         await repo.save_message(sid, "assistant", response)
         await db.commit()
 

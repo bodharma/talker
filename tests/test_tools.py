@@ -1,6 +1,7 @@
 from talker.agents.tools import (
-    parse_instrument_selection,
+    build_clinical_query,
     get_score_context,
+    parse_instrument_selection,
 )
 from talker.services.instruments import InstrumentLoader
 
@@ -33,3 +34,18 @@ def test_get_score_context_minimal():
     loader = InstrumentLoader("talker/instruments")
     context = get_score_context("phq-9", 2, loader)
     assert "minimal" in context.lower()
+
+
+def test_build_clinical_query():
+    query = build_clinical_query(
+        symptoms=["insomnia", "low mood", "fatigue"],
+        instrument_id="phq-9",
+    )
+    assert "insomnia" in query
+    assert "PHQ-9" in query
+
+
+def test_build_clinical_query_no_instrument():
+    query = build_clinical_query(symptoms=["anxiety", "worry"])
+    assert "anxiety" in query
+    assert "screening" not in query.lower()

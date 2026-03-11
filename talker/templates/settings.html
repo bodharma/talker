@@ -87,6 +87,29 @@
 </div>
 
 <div class="card">
+    <h2>RAG Knowledge Base</h2>
+    <div style="display:grid;gap:0.5rem;margin-top:0.75rem;">
+        <div style="display:flex;justify-content:space-between;">
+            <span>Embedding Provider</span>
+            <span>{{ embedding_provider }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+            <span>Embedding Model</span>
+            <span>{{ embedding_model }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+            <span>OpenAI API Key</span>
+            <span style="color: {{ 'var(--accent)' if rag_configured else 'var(--text-muted)' }};">
+                {{ 'Configured' if rag_configured else 'Not set (RAG disabled)' }}
+            </span>
+        </div>
+    </div>
+    <p style="color:var(--text-muted);font-size:0.8rem;margin-top:0.5rem;">
+        Ingest knowledge: <code>python -m talker.cli ingest talker/knowledge</code>
+    </p>
+</div>
+
+<div class="card">
     <h2>Loaded Instruments</h2>
     <ul style="margin-left:1.5rem;">
         {% for inst in instruments %}
