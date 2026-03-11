@@ -13,6 +13,7 @@ wheels/
 .env
 .env.*
 !.env.example
+!.env.receptionist
 
 # IDE / editor configs
 .idea/
