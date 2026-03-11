@@ -237,6 +237,24 @@ class SessionRepository:
             return []
         return summary.recommendations
 
+    async def save_voice_features(
+        self,
+        session_id: uuid_mod.UUID,
+        utterance_index: int,
+        role: str,
+        features: dict,
+    ) -> None:
+        from talker.models.db import VoiceFeature
+
+        vf = VoiceFeature(
+            session_id=session_id,
+            utterance_index=utterance_index,
+            role=role,
+            features=features,
+        )
+        self.db.add(vf)
+        await self.db.flush()
+
     async def get_safety_events(self, session_id: uuid_mod.UUID) -> list[dict]:
         stmt = (
             select(SafetyEventRecord)
