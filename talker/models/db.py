@@ -126,6 +126,39 @@ class VoiceFeature(Base):
     session: Mapped["Session"] = relationship(back_populates="voice_features")
 
 
+class Visitor(Base):
+    """Building visitor — tracked by receptionist for personalised return visits."""
+
+    __tablename__ = "visitors"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    first_name: Mapped[str] = mapped_column(String(255))
+    last_name: Mapped[str] = mapped_column(String(255))
+    email: Mapped[str] = mapped_column(String(255), unique=True)
+    company: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    visit_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    last_visit_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    visits: Mapped[list["VisitorLog"]] = relationship(
+        back_populates="visitor", order_by="VisitorLog.created_at.desc()"
+    )
+
+
+class VisitorLog(Base):
+    """Individual visit record — who they saw, when, mood impression."""
+
+    __tablename__ = "visitor_logs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    visitor_id: Mapped[int] = mapped_column(ForeignKey("visitors.id"))
+    visiting_person: Mapped[str] = mapped_column(String(255))
+    visiting_company: Mapped[str] = mapped_column(String(255))
+    floor: Mapped[int] = mapped_column(Integer)
+    mood_impression: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    visitor: Mapped["Visitor"] = relationship(back_populates="visits")
+
+
 class PatientLink(Base):
     __tablename__ = "patient_links"
     id: Mapped[int] = mapped_column(primary_key=True)

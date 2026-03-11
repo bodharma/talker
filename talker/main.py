@@ -24,6 +24,7 @@ from talker.routes.history import router as history_router
 from talker.routes.main import router as main_router
 from talker.routes.report import router as report_router
 from talker.routes.settings import router as settings_router
+from talker.routes.livekit import router as livekit_router
 from talker.routes.voice import router as voice_router
 from talker.services.database import create_session_factory, run_migrations
 from talker.services.tracing import init_langfuse
@@ -118,6 +119,7 @@ app.include_router(assess_router)
 app.include_router(history_router)
 app.include_router(report_router)
 app.include_router(voice_router)
+app.include_router(livekit_router)
 app.include_router(settings_router)
 app.include_router(auth_router)
 app.include_router(clinician_router)

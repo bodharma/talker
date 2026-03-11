@@ -15,12 +15,23 @@ A psychology pre-assessment voice assistant. Users take validated DSM-5 screenin
 
 ```mermaid
 graph TB
-    subgraph "User Interface"
+    subgraph "Voice Transports"
         WEB["Web UI<br/>FastAPI + Jinja2"]
-        VOICE["Voice I/O<br/>WebSocket + STT/TTS"]
+        WS["WebSocket Voice<br/>Local STT/TTS"]
+        LK["LiveKit Rooms<br/>Cloud STT/LLM/TTS"]
     end
 
-    subgraph "Agent Layer"
+    subgraph "Persona Layer"
+        direction TB
+        PREG["Persona Registry<br/>livekit_agent.py / orchestrator.py"]
+        subgraph "Personas"
+            ASSESS["Psychology Assessor<br/>agents/ + instruments/"]
+            RECEP["Shard Receptionist<br/>personas/receptionist.py"]
+            FUTURE["Future Personas<br/>personas/?.py"]
+        end
+    end
+
+    subgraph "Shared Agent Engine"
         ORCH["Orchestrator"]
         SCREEN["Screener Agent"]
         CONV["Conversation Agent"]
@@ -28,13 +39,17 @@ graph TB
         MAPPER["Voice Answer Mapper"]
     end
 
+    subgraph "Tool Registries"
+        ATOOLS["Assessor Tools<br/>triage, scoring, safety"]
+        RTOOLS["Receptionist Tools<br/>directory, weather,<br/>building info, visitor log"]
+    end
+
     subgraph "Services Layer"
         LLM["LLM Service<br/>OpenRouter / Ollama"]
-        TRACE["Tracing<br/>Langfuse"]
+        TRACE["Tracing + Prompts<br/>Langfuse"]
         INSTR["Instrument Loader<br/>YAML-driven"]
         DB["Database<br/>PostgreSQL + SQLAlchemy"]
-        TOOLS["Agent Tools<br/>Triage, Scoring"]
-        VPROV["Voice Provider<br/>Local or Cloud"]
+        VPROV["Voice Provider<br/>Local / Cloud / LiveKit"]
         VFEAT["Voice Features<br/>Parselmouth"]
         RAG["RAG Service<br/>pgvector + Embeddings"]
         SMEM["Session Memory<br/>Cross-session context"]
@@ -47,20 +62,25 @@ graph TB
     end
 
     WEB --> ORCH
-    VOICE --> ORCH
+    WS --> ORCH
+    LK --> PREG
+    PREG --> ASSESS
+    PREG --> RECEP
+    ASSESS --> ORCH
+    ASSESS --> ATOOLS
+    RECEP --> RTOOLS
     ORCH --> SCREEN
     ORCH --> CONV
     ORCH --> SAFETY
-    ORCH --> TOOLS
     SCREEN --> INSTR
     CONV --> LLM
     CONV --> RAG
     CONV --> SMEM
     LLM --> TRACE
     ORCH --> DB
-    VOICE --> VPROV
-    VOICE --> VFEAT
-    VOICE --> MAPPER
+    WS --> VPROV
+    WS --> VFEAT
+    WS --> MAPPER
     MAPPER --> LLM
     ADMIN --> AREPO
     ADMIN --> EXPORT
@@ -68,7 +88,125 @@ graph TB
 ```
 
 **Why this architecture?**
-The hybrid screening model (rigid questionnaires + open conversation) maps naturally to specialized agents. The Orchestrator decides when to use structured screeners vs free-form dialogue. Adding a new screening instrument = adding a YAML file, not writing code.
+The hybrid screening model (rigid questionnaires + open conversation) maps naturally to specialized agents. The Orchestrator decides when to use structured screeners vs free-form dialogue. Adding a new screening instrument = adding a YAML file, not writing code. Adding a new persona = adding a tool file + registering the agent class.
+
+---
+
+## Persona System — How Different Agents Share One Platform
+
+> **For AI tools:** This section explains the persona abstraction. When adding new personas, follow this pattern exactly.
+
+The platform supports multiple personas — different conversational agents with different tools, instructions, and purposes — running on the same engine. Each persona is a configuration, not a codebase.
+
+```mermaid
+graph TB
+    subgraph "What a Persona IS"
+        direction LR
+        INST["Instructions<br/>(system prompt via Langfuse)"]
+        TOOLS_P["Tool Registry<br/>(@function_tool functions)"]
+        CLASS["Agent Class<br/>extends livekit Agent"]
+    end
+
+    subgraph "What a Persona SHARES"
+        direction LR
+        ENGINE["Voice Pipeline<br/>STT → LLM → TTS"]
+        CONFIG_S["Config System<br/>pydantic-settings"]
+        TRACE_S["Observability<br/>Langfuse tracing"]
+        AUTH_S["Auth + Roles<br/>if using web UI"]
+    end
+
+    subgraph "Current Personas"
+        direction TB
+        PA["🧠 Psychology Assessor<br/>━━━━━━━━━━━━━━━<br/>Tools: triage, screening,<br/>scoring, safety, RAG<br/>Transport: WebSocket + Web UI<br/>Data: YAML instruments,<br/>knowledge base, PostgreSQL"]
+
+        PR["🏢 Shard Receptionist<br/>━━━━━━━━━━━━━━━<br/>Tools: directory lookup,<br/>availability, building info,<br/>weather API, visitor log<br/>Transport: LiveKit rooms<br/>Data: in-memory dicts"]
+    end
+```
+
+### Persona comparison — same pattern, different purpose
+
+```mermaid
+graph LR
+    subgraph "Psychology Assessor"
+        direction TB
+        A_GREET["Greet + disclaimers"]
+        A_TRIAGE["Triage: which instruments?"]
+        A_SCREEN["Administer screening"]
+        A_CONV["Follow-up conversation"]
+        A_SUMMARY["Summary + recommendations"]
+        A_GREET --> A_TRIAGE --> A_SCREEN --> A_CONV --> A_SUMMARY
+    end
+
+    subgraph "Shard Receptionist"
+        direction TB
+        R_GREET["Greet visitor"]
+        R_WHO["Who are you here to see?"]
+        R_LOOKUP["Look up in directory"]
+        R_AVAIL["Check availability"]
+        R_DIRECT["Give directions + log"]
+        R_GREET --> R_WHO --> R_LOOKUP --> R_AVAIL --> R_DIRECT
+    end
+```
+
+Both follow the same pattern: **greet → understand need → use tools → respond naturally → close.**
+
+### Adding a new persona
+
+```mermaid
+flowchart LR
+    A["1. Create<br/>personas/name.py"] --> B["2. Define tools<br/>@function_tool()"]
+    B --> C["3. Write instructions<br/>or fetch from Langfuse"]
+    C --> D["4. Create Agent class<br/>tools + instructions"]
+    D --> E["5. Register in<br/>PERSONAS dict"]
+    E --> F["6. Add tests"]
+```
+
+No schema changes. No route changes. No database migrations. Just a Python file with tools and a prompt.
+
+### Capabilities — pluggable pipeline modules
+
+> **For AI tools:** Capabilities and tools are different things. Tools are called by the LLM on demand. Capabilities run automatically on every audio turn and inject context into the LLM before it responds.
+
+Capabilities are processing modules that hook into the voice pipeline. They analyze audio, enrich context, and optionally expose tools. Any persona can opt into any capability.
+
+```mermaid
+graph TB
+    subgraph "Pipeline Flow"
+        direction LR
+        AUDIO["Audio turn"] --> CAP["Capabilities<br/>(automatic)"]
+        CAP --> CONTEXT["Enriched context"]
+        CONTEXT --> LLM["LLM"]
+        LLM --> TOOLS["Tools<br/>(on demand)"]
+        TOOLS --> RESPONSE["Response"]
+    end
+
+    subgraph "Current Capabilities"
+        VA["🎙 VoiceAnalysisCapability<br/>━━━━━━━━━━━━━━━<br/>Wraps voice_features.py<br/>Extracts: pitch, jitter, shimmer, HNR<br/>Infers: mood (6 rules)<br/>Exposes: get_voice_analysis, get_voice_trend<br/>Injects: mood context per turn"]
+    end
+
+    subgraph "Capability ABC"
+        BASE["BaseCapability<br/>━━━━━━━━━━━━━━━<br/>process_audio(audio, sr, transcript)<br/>get_context_prompt(results)<br/>get_tools()"]
+    end
+
+    VA --> BASE
+```
+
+**Adding a capability to a persona:**
+
+```python
+PERSONAS = {
+    "receptionist": {
+        "agent_class": ReceptionistAgent,
+        "capabilities": [VoiceAnalysisCapability],  # plug in
+    },
+    "receptionist-basic": {
+        "agent_class": ReceptionistAgent,
+        "capabilities": [],  # opt out
+    },
+}
+```
+
+See [`docs/livekit-architecture.md`](livekit-architecture.md) for the detailed capability architecture with mood inference rules and audio processing pipeline.
 
 ---
 
@@ -181,7 +319,12 @@ graph LR
     subgraph "talker/ (Python package)"
         direction TB
         MAIN["main.py<br/>FastAPI app, lifespan"]
+        LKAGENT["livekit_agent.py<br/>LiveKit entrypoint"]
         CONFIG["config.py<br/>pydantic-settings"]
+
+        subgraph personas/
+            REC_P["receptionist.py<br/>Shard receptionist tools + agent"]
+        end
 
         subgraph agents/
             ORCH_F["orchestrator.py"]
@@ -269,6 +412,7 @@ graph LR
 | **Deepgram** | Cloud STT | High-accuracy speech recognition, Nova-2 model |
 | **ElevenLabs** | Cloud TTS | Natural-sounding voices, streaming PCM output |
 | **Parselmouth** | Voice analysis | Praat wrapper for pitch (F0), jitter, shimmer, HNR extraction |
+| **LiveKit Agents** | Real-time voice transport | Room-based communication, managed STT/LLM/TTS pipeline, persona-driven agents via `@function_tool` |
 | **WeasyPrint** | PDF reports | HTML-to-PDF with CSS support, standalone report templates |
 
 ---
@@ -383,7 +527,10 @@ graph TB
 | Scheduling | ✅ | 2 | Recurrence (weekly/biweekly/monthly), due tracking |
 | Longitudinal trends | ✅ | 1 | Score history, trend direction, Chart.js visualization |
 | Deployment prep | ✅ | 3 | Security headers, health endpoint, trusted hosts |
-| **Total tests** | | **119** | All passing, ruff clean |
+| LiveKit agent | ✅ | — | Persona-driven entrypoint, STT/LLM/TTS pipeline, CLI |
+| Receptionist persona | ✅ | 25 | 5 tools, fuzzy matching, directory, weather API |
+| Capabilities system | ✅ | 21 | Voice analysis, mood inference (6 rules), trend tracking |
+| **Total tests** | | **165** | All passing, ruff clean |
 
 ### Known limitations
 
@@ -450,6 +597,8 @@ graph BT
     CONFIG --> LLM["services/llm.py"]
     CONFIG --> TRACE["services/tracing.py"]
     CONFIG --> DB_SVC["services/database.py"]
+    CONFIG --> LK["livekit_agent.py"]
+    CONFIG --> REC["personas/receptionist.py"]
 
     SCHEMAS["models/schemas.py"] --> SCREENER["agents/screener.py"]
     SCHEMAS --> CONV["agents/conversation.py"]
@@ -477,6 +626,52 @@ graph BT
     MAIN --> |include_router| MAIN_R["routes/main.py"]
     MAIN --> |include_router| HIST_R["routes/history.py"]
     MAIN --> |include_router| SETTINGS_R
+
+    REC --> LK
+    LK --> |LiveKit SDK| LKCLOUD["LiveKit Cloud"]
+```
+
+---
+
+## Voice Transport Comparison
+
+> **For AI tools:** The platform supports three voice transport modes. Each persona can use any transport, but in practice the assessor uses WebSocket and the receptionist uses LiveKit.
+
+```mermaid
+graph TB
+    subgraph "Transport: Local WebSocket"
+        direction LR
+        L_STT["faster-whisper<br/>Local CPU inference"]
+        L_LLM["OpenRouter / Ollama<br/>via PydanticAI"]
+        L_TTS["Piper TTS<br/>Local neural TTS"]
+        L_STT --> L_LLM --> L_TTS
+    end
+
+    subgraph "Transport: Cloud WebSocket"
+        direction LR
+        C_STT["Deepgram<br/>Nova-2 cloud STT"]
+        C_LLM["OpenRouter / Ollama<br/>via PydanticAI"]
+        C_TTS["ElevenLabs<br/>Cloud neural TTS"]
+        C_STT --> C_LLM --> C_TTS
+    end
+
+    subgraph "Transport: LiveKit Rooms"
+        direction LR
+        LK_STT["Deepgram<br/>Nova-3 via LiveKit"]
+        LK_LLM["OpenAI GPT-4.1-mini<br/>via LiveKit plugin"]
+        LK_TTS["Cartesia Sonic-3<br/>via LiveKit plugin"]
+        LK_STT --> LK_LLM --> LK_TTS
+    end
+
+    subgraph "Use Cases"
+        UC_LOCAL["Offline / self-hosted<br/>No API keys needed"]
+        UC_CLOUD["Production web app<br/>Best quality"]
+        UC_LK["Real-time rooms<br/>LiveKit Playground<br/>Deployable to cloud"]
+    end
+
+    L_STT -.-> UC_LOCAL
+    C_STT -.-> UC_CLOUD
+    LK_STT -.-> UC_LK
 ```
 
 ---

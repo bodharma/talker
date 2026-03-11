@@ -73,6 +73,14 @@ class Settings(BaseSettings):
     base_url: str = "http://localhost:8000"  # for OAuth callback URLs
     allowed_hosts: str = "*"  # comma-separated, e.g. "talker.example.com,localhost"
 
+    # LiveKit
+    livekit_url: str = ""
+    livekit_api_key: str = ""
+    livekit_api_secret: str = ""
+
+    # Weather API (receptionist persona)
+    openweathermap_api_key: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

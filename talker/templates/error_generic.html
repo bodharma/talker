@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Talker — Error{% endblock %}
+{% block content %}
+<div class="card" style="text-align: center; padding: 2rem;">
+    <h2>Something went wrong</h2>
+    <p style="color: var(--text-muted); margin: 1rem 0;">{{ message }}</p>
+    <a href="/" class="btn btn-primary">Back to Home</a>
+</div>
+{% endblock %}
