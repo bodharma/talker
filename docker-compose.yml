@@ -4,10 +4,58 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://talker:talker@postgres:5432/talker
+      # Database
+      DATABASE_URL: postgresql+asyncpg://talker:${POSTGRES_PASSWORD:-talker}@postgres:5432/talker
+
+      # App
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-change-me-in-production}
+      BASE_URL: ${BASE_URL:-http://localhost:8000}
+      DEBUG: ${DEBUG:-false}
+
+      # Auth — admin bootstrap (creates admin user on first startup)
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+
+      # Auth — OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
+      APPLE_CLIENT_SECRET: ${APPLE_CLIENT_SECRET:-}
+
+      # LLM — OpenRouter
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL_CONVERSATION: ${OPENROUTER_MODEL_CONVERSATION:-anthropic/claude-sonnet-4-20250514}
+      OPENROUTER_MODEL_SCREENER: ${OPENROUTER_MODEL_SCREENER:-anthropic/claude-haiku-4-20250414}
+
+      # LLM — Ollama fallback
+      LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-llama3.2}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://localhost:11434}
+
+      # RAG / Embeddings
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-512}
+      RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-64}
+      RAG_TOP_K: ${RAG_TOP_K:-5}
+
+      # Langfuse (observability)
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-https://cloud.langfuse.com}
+
+      # Voice
+      VOICE_PROVIDER: ${VOICE_PROVIDER:-local}
+      VOICE_LOCAL_STT_MODEL: ${VOICE_LOCAL_STT_MODEL:-base}
+      VOICE_LOCAL_TTS_MODEL: ${VOICE_LOCAL_TTS_MODEL:-en_US-amy-medium}
+      VOICE_LOCAL_MODELS_DIR: ${VOICE_LOCAL_MODELS_DIR:-models/voice}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      DEEPGRAM_MODEL: ${DEEPGRAM_MODEL:-nova-2}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_MODEL: ${ELEVENLABS_MODEL:-eleven_multilingual_v2}
+      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -17,7 +65,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: talker
-      POSTGRES_PASSWORD: talker
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-talker}
       POSTGRES_DB: talker
     ports:
       - "5432:5432"
