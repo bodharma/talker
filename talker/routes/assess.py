@@ -34,6 +34,7 @@ async def assess_begin(
     request: Request,
     instruments: list[str] = Form(default=[]),
     full_checkup: str = Form(default=""),
+    voice: str = Form(default=""),
 ):
     orch = Orchestrator()
 
@@ -49,6 +50,11 @@ async def assess_begin(
         repo = SessionRepository(db)
         session_id = await repo.create(instrument_queue=instrument_queue)
         await db.commit()
+
+    if voice:
+        return RedirectResponse(
+            url=f"/assess/voice?session_id={session_id}", status_code=303
+        )
 
     return RedirectResponse(
         url=f"/assess/screening?session_id={session_id}", status_code=303

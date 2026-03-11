@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Talker — Voice Assessment{% endblock %}
+{% block head %}
+<style>
+    .voice-container {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 200px);
+        max-width: 720px;
+        margin: 0 auto;
+    }
+    #state-info {
+        text-align: center;
+        padding: 0.75rem;
+        background: var(--bg-card);
+        border-radius: var(--radius);
+        margin-bottom: 1rem;
+        box-shadow: var(--shadow);
+    }
+    #transcript {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        background: var(--bg-card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        margin-bottom: 1rem;
+    }
+    .chat-message {
+        margin-bottom: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+    }
+    .chat-user {
+        background: var(--primary);
+        color: white;
+        margin-left: 15%;
+    }
+    .chat-assistant {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        margin-right: 15%;
+    }
+    .chat-safety {
+        background: #ffeaa7;
+        border: 2px solid var(--warning);
+    }
+    .chat-role {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        opacity: 0.7;
+    }
+    .chat-content { margin-top: 0.15rem; }
+    .voice-controls {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem;
+    }
+    #mic-btn {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        border: 3px solid var(--border);
+        background: var(--bg-card);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        font-size: 2rem;
+    }
+    #mic-btn:hover { border-color: var(--primary); }
+    #mic-btn.active {
+        background: var(--primary);
+        border-color: var(--primary);
+        animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(108, 92, 231, 0.4); }
+        50% { box-shadow: 0 0 0 15px rgba(108, 92, 231, 0); }
+    }
+    #status {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+    }
+    .mic-level-container {
+        width: 200px;
+        height: 4px;
+        background: var(--border);
+        border-radius: 2px;
+        overflow: hidden;
+    }
+    #mic-level {
+        height: 100%;
+        background: var(--primary);
+        width: 0%;
+        transition: width 0.05s;
+    }
+    .fallback-link {
+        text-align: center;
+        margin-top: 0.5rem;
+    }
+    .fallback-link a {
+        color: var(--text-muted);
+        font-size: 0.8rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="voice-container">
+    <div id="state-info">Connecting...</div>
+    <div id="transcript"></div>
+    <div class="voice-controls">
+        <button id="mic-btn" onclick="voiceClient.toggleListening()">&#127908;</button>
+        <div class="mic-level-container"><div id="mic-level"></div></div>
+        <div id="status">Initializing...</div>
+    </div>
+    <div class="fallback-link">
+        <a href="/assess/screening?session_id={{ session_id }}">Switch to text mode</a>
+        <span style="margin:0 0.5rem;color:var(--text-muted);">|</span>
+        <a href="/assess/summary?session_id={{ session_id }}">Skip to summary</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/voice.js"></script>
+<script>
+    const voiceClient = new VoiceClient("{{ session_id }}");
+    voiceClient.connect().then(() => voiceClient.startMic());
+</script>
+{% endblock %}
