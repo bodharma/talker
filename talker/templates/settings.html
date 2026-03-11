@@ -38,6 +38,55 @@
 </div>
 
 <div class="card">
+    <h2>Voice I/O</h2>
+    <p style="margin-bottom:1rem;">
+        Provider:
+        <strong>{{ voice_provider }}</strong>
+        {% if voice_provider == 'cloud' and cloud_voice_available %}
+            <span class="severity-minimal">● Active</span>
+        {% elif voice_provider == 'local' %}
+            <span class="severity-minimal">● Local</span>
+        {% else %}
+            <span class="severity-moderate">● Not Configured</span>
+        {% endif %}
+    </p>
+
+    <div style="margin-bottom:0.75rem;">
+        <label style="font-weight:600;font-size:0.9rem;">Voice Provider</label>
+        <select id="voice-provider" style="width:100%;padding:0.5rem;border:1px solid var(--border);border-radius:6px;margin-top:0.25rem;" disabled>
+            <option value="local" {% if voice_provider == 'local' %}selected{% endif %}>Local (faster-whisper + Piper)</option>
+            <option value="cloud" {% if voice_provider == 'cloud' %}selected{% endif %} {% if not cloud_voice_available %}disabled{% endif %}>
+                Cloud (Deepgram + ElevenLabs) {% if not cloud_voice_available %}— API keys required{% endif %}
+            </option>
+        </select>
+        <small style="color:var(--text-muted);">Set via VOICE_PROVIDER env variable</small>
+    </div>
+
+    <div style="margin-bottom:0.75rem;">
+        <label style="font-weight:600;font-size:0.9rem;">STT Model</label>
+        <select id="stt-model" style="width:100%;padding:0.5rem;border:1px solid var(--border);border-radius:6px;margin-top:0.25rem;" disabled>
+            {% for model in stt_models %}
+            <option value="{{ model }}" {% if model == current_stt_model %}selected{% endif %}>{{ model }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div style="margin-bottom:0.75rem;">
+        <label style="font-weight:600;font-size:0.9rem;">TTS Model / Voice</label>
+        <select id="tts-model" style="width:100%;padding:0.5rem;border:1px solid var(--border);border-radius:6px;margin-top:0.25rem;" disabled>
+            {% for model in tts_models %}
+            <option value="{{ model.id }}" {% if model.id == current_tts_model %}selected{% endif %}>{{ model.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <p style="color:var(--text-muted);font-size:0.8rem;">
+        Deepgram: {% if deepgram_configured %}✅ Configured{% else %}❌ Not set{% endif %} ·
+        ElevenLabs: {% if elevenlabs_configured %}✅ Configured{% else %}❌ Not set{% endif %}
+    </p>
+</div>
+
+<div class="card">
     <h2>Loaded Instruments</h2>
     <ul style="margin-left:1.5rem;">
         {% for inst in instruments %}
