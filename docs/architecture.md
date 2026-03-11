@@ -1,7 +1,7 @@
 # Talker — Architecture Document
 
-**Last updated:** 2026-03-10
-**Status:** Phase 1 MVP + DB persistence implemented, Phases 2-4 planned
+**Last updated:** 2026-03-11
+**Status:** Phase 1 MVP + DB persistence + Voice I/O implemented, Phases 2-4 planned
 
 ## What Is Talker?
 
@@ -17,7 +17,7 @@ A psychology pre-assessment voice assistant. Users take validated DSM-5 screenin
 graph TB
     subgraph "User Interface"
         WEB["Web UI<br/>FastAPI + Jinja2"]
-        VOICE["Voice I/O<br/>(Phase 2)"]
+        VOICE["Voice I/O<br/>WebSocket + STT/TTS"]
     end
 
     subgraph "Agent Layer"
@@ -25,6 +25,7 @@ graph TB
         SCREEN["Screener Agent"]
         CONV["Conversation Agent"]
         SAFETY["Safety Monitor"]
+        MAPPER["Voice Answer Mapper"]
     end
 
     subgraph "Services Layer"
@@ -33,10 +34,12 @@ graph TB
         INSTR["Instrument Loader<br/>YAML-driven"]
         DB["Database<br/>PostgreSQL + SQLAlchemy"]
         TOOLS["Agent Tools<br/>Triage, Scoring"]
+        VPROV["Voice Provider<br/>Local or Cloud"]
+        VFEAT["Voice Features<br/>Parselmouth"]
     end
 
     WEB --> ORCH
-    VOICE -.-> ORCH
+    VOICE --> ORCH
     ORCH --> SCREEN
     ORCH --> CONV
     ORCH --> SAFETY
@@ -45,8 +48,10 @@ graph TB
     CONV --> LLM
     LLM --> TRACE
     ORCH --> DB
-
-    style VOICE stroke-dasharray: 5 5
+    VOICE --> VPROV
+    VOICE --> VFEAT
+    VOICE --> MAPPER
+    MAPPER --> LLM
 ```
 
 **Why this architecture?**
@@ -171,6 +176,7 @@ graph LR
             CONV_F["conversation.py"]
             SAFETY_F["safety.py"]
             TOOLS_F["tools.py"]
+            VMAP_F["voice_mapper.py"]
         end
 
         subgraph services/
@@ -179,6 +185,8 @@ graph LR
             INSTR_F["instruments.py"]
             DB_F["database.py"]
             REPO_F["session_repo.py"]
+            VOICE_F["voice.py"]
+            VFEAT_F["voice_features.py"]
         end
 
         subgraph models/
@@ -189,13 +197,16 @@ graph LR
         subgraph routes/
             MAIN_R["main.py → /"]
             ASSESS_R["assess.py → /assess/*"]
+            VOICE_R["voice.py → /assess/voice, /ws/voice"]
             HIST_R["history.py → /history/*"]
             SET_R["settings.py → /settings"]
+            REPORT_R["report.py → /report/*"]
         end
 
         subgraph "templates/ + static/"
-            TPL["Jinja2 templates<br/>base, index, assess_*,<br/>history, settings"]
+            TPL["Jinja2 templates<br/>base, index, assess_*,<br/>history, settings, report"]
             CSS["style.css<br/>calming design"]
+            JS["voice.js + audio-processor.js<br/>WebSocket voice client"]
         end
 
         subgraph instruments/
@@ -222,6 +233,12 @@ graph LR
 | **SQLAlchemy 2.0 async** | ORM | Async support, mapped columns, works well with FastAPI's async lifecycle |
 | **pydantic-settings** | Configuration | Type-safe `.env` loading, validation, defaults. No stringly-typed config |
 | **YAML instruments** | Screening definitions | Human-readable, clinician-editable, data-driven. No code per instrument |
+| **faster-whisper** | Local STT | Fast CPU inference (int8), lazy-loaded, multiple model sizes |
+| **Piper TTS** | Local TTS | Lightweight neural TTS, streaming PCM output, multiple voices |
+| **Deepgram** | Cloud STT | High-accuracy speech recognition, Nova-2 model |
+| **ElevenLabs** | Cloud TTS | Natural-sounding voices, streaming PCM output |
+| **Parselmouth** | Voice analysis | Praat wrapper for pitch (F0), jitter, shimmer, HNR extraction |
+| **WeasyPrint** | PDF reports | HTML-to-PDF with CSS support, standalone report templates |
 
 ---
 
@@ -245,12 +262,13 @@ graph TB
         P1_13["DB persistence<br/>PostgreSQL + SessionRepository"]
         P1_14["Docker Compose<br/>app + PostgreSQL"]
         P1_15["Report generation<br/>PDF/HTML via WeasyPrint"]
+        P1_16["Voice I/O<br/>WebSocket + STT/TTS<br/>Local + Cloud providers"]
+        P1_17["Voice features<br/>Pitch, jitter, shimmer, HNR"]
+        P1_18["Voice answer mapping<br/>LLM natural language → scale values"]
     end
 
     subgraph "⬜ NOT YET — Phase 2"
-        P2_1["Voice I/O<br/>LiveKit cloud + local Whisper/Piper"]
         P2_2["RAG system<br/>pgvector embeddings + clinical knowledge"]
-        P2_3["Voice analytics<br/>mood/sentiment from audio"]
     end
 
     subgraph "⬜ NOT YET — Phase 3"
@@ -282,6 +300,9 @@ graph TB
     style P1_13 fill:#d4edda
     style P1_14 fill:#d4edda
     style P1_15 fill:#d4edda
+    style P1_16 fill:#d4edda
+    style P1_17 fill:#d4edda
+    style P1_18 fill:#d4edda
 ```
 
 ### Phase 1 — What works today
@@ -305,15 +326,20 @@ graph TB
 | Web UI (home) | ✅ | — | Calming design, SSR |
 | Web UI (assessment) | ✅ | — | Instrument selection → screening → conversation → summary |
 | Web UI (history) | ✅ | — | DB-backed session list + detail views |
-| Web UI (settings) | ✅ | — | Service status display |
+| Web UI (settings) | ✅ | — | Service status + voice config display |
 | Docker Compose | ✅ | — | App + PostgreSQL, auto-migrations on startup |
 | Report generation | ✅ | 8 | PDF/HTML via WeasyPrint, download from summary + history |
-| **Total tests** | | **55** | All passing, ruff clean |
+| Voice providers | ✅ | 6 | Local (faster-whisper + Piper) and cloud (Deepgram + ElevenLabs) |
+| Voice features | ✅ | 6 | Pitch, jitter, shimmer, HNR, intensity, speech rate via Parselmouth |
+| Voice answer mapper | ✅ | 4 | LLM-powered natural language → screening scale value mapping |
+| Voice WebSocket | ✅ | — | Full voice assessment flow (screening + conversation) |
+| Voice UI | ✅ | — | Dedicated voice page with mic capture, transcript, TTS playback |
+| **Total tests** | | **71** | All passing, ruff clean |
 
 ### Phase 1 — Known limitations
 
 - **Conversation falls back to static response** when `OPENROUTER_API_KEY` is not set
-- **No voice** — text-only for now
+- **Voice answer mapping falls back to low confidence** when `OPENROUTER_API_KEY` is not set
 
 ---
 
@@ -323,10 +349,13 @@ graph TB
 flowchart TB
     HOME["/ Home<br/>Welcome + Begin Assessment"] --> ASSESS["/assess<br/>Select instruments<br/>or Full Checkup"]
     ASSESS -->|POST /assess/start| SCREEN["/assess/screening<br/>Question + progress bar<br/>+ response buttons"]
+    ASSESS -->|POST /assess/start voice=1| VOICEUI["/assess/voice<br/>WebSocket voice<br/>screening + conversation"]
     SCREEN -->|POST /assess/answer| SCREEN
     SCREEN -->|all done| CHAT["/assess/conversation<br/>Chat with LLM<br/>+ safety checking"]
     CHAT -->|POST /assess/chat| CHAT
     CHAT -->|Skip to Summary| SUMMARY["/assess/summary<br/>Scores + severity<br/>+ recommendations"]
+    VOICEUI -->|Skip to Summary| SUMMARY
+    VOICEUI -->|Switch to text| SCREEN
     SUMMARY --> HOME
 
     HIST["/history<br/>Past sessions"] --> DETAIL["/history/{id}<br/>Session detail"]
@@ -440,9 +469,9 @@ gantt
     section Phase 1 (Done)
         Core agents + Web UI          :done, p1, 2026-03, 2026-03
     section Phase 2 (Next)
-        Voice I/O (LiveKit + local)   :p2a, 2026-03, 2026-04
+        Voice I/O (WebSocket + STT/TTS) :done, p2a, 2026-03, 2026-03
+        Voice features (Parselmouth)  :done, p2f, 2026-03, 2026-03
         RAG system (pgvector)         :p2b, 2026-03, 2026-04
-        Voice analytics               :p2c, 2026-04, 2026-04
         DB persistence                :done, p2d, 2026-03, 2026-03
         Report generation             :done, p2e, 2026-03, 2026-03
     section Phase 3
