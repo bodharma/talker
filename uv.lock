@@ -4122,7 +4122,7 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27.0" },
     { name = "itsdangerous", specifier = ">=2.1.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
-    { name = "langfuse", specifier = ">=2.0.0" },
+    { name = "langfuse", specifier = ">=4.0.0" },
     { name = "livekit-agents", specifier = ">=1.0.0" },
     { name = "livekit-plugins-cartesia", specifier = ">=1.0.0" },
     { name = "livekit-plugins-deepgram", specifier = ">=1.0.0" },

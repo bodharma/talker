@@ -300,21 +300,21 @@ Style:
 class AssessorAgent(Agent):
     """Psychology pre-assessment agent — screening + follow-up via voice."""
 
-    def __init__(self) -> None:
+    def __init__(self, extra_tools: list | None = None) -> None:
         from talker.services.tracing import get_prompt
 
         instructions = get_prompt("talker-assessor", ASSESSOR_INSTRUCTIONS)
-        super().__init__(
-            instructions=instructions,
-            tools=[
-                list_available_instruments,
-                triage_symptoms,
-                start_assessment,
-                get_current_question,
-                submit_answer,
-                check_safety,
-                start_followup_conversation,
-                get_score_interpretation,
-                get_assessment_summary,
-            ],
-        )
+        tools = [
+            list_available_instruments,
+            triage_symptoms,
+            start_assessment,
+            get_current_question,
+            submit_answer,
+            check_safety,
+            start_followup_conversation,
+            get_score_interpretation,
+            get_assessment_summary,
+        ]
+        if extra_tools:
+            tools.extend(extra_tools)
+        super().__init__(instructions=instructions, tools=tools)

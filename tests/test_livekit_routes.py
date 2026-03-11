@@ -12,11 +12,9 @@ class TestLivekitTokenEndpoint:
 
     @pytest.mark.asyncio
     async def test_token_generation_without_credentials(self):
-        from fastapi import FastAPI
         from httpx import ASGITransport, AsyncClient
 
-        app = FastAPI()
-        app.include_router(router)
+        app = _make_app()
 
         with patch("talker.routes.livekit.get_settings") as mock_settings:
             settings = mock_settings.return_value
@@ -36,17 +34,25 @@ class TestLivekitTokenEndpoint:
 
     @pytest.mark.asyncio
     async def test_token_generation_with_credentials(self):
-        from fastapi import FastAPI
         from httpx import ASGITransport, AsyncClient
+        from unittest.mock import AsyncMock
 
-        app = FastAPI()
-        app.include_router(router)
+        app = _make_app()
 
-        with patch("talker.routes.livekit.get_settings") as mock_settings:
+        with (
+            patch("talker.routes.livekit.get_settings") as mock_settings,
+            patch("talker.routes.livekit.api.LiveKitAPI") as mock_lkapi_cls,
+            patch("talker.routes.livekit.create_trace", return_value=None),
+        ):
             settings = mock_settings.return_value
             settings.livekit_api_key = "devkey"
             settings.livekit_api_secret = "secret-that-is-at-least-32-chars-long!"
             settings.livekit_url = "wss://test.livekit.cloud"
+
+            mock_lkapi = mock_lkapi_cls.return_value
+            mock_lkapi.room.create_room = AsyncMock()
+            mock_lkapi.agent_dispatch.create_dispatch = AsyncMock()
+            mock_lkapi.aclose = AsyncMock()
 
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
@@ -63,19 +69,30 @@ class TestLivekitTokenEndpoint:
                 assert data["livekit_url"] == "wss://test.livekit.cloud"
                 assert "participant_id" in data
 
+            mock_lkapi.room.create_room.assert_called_once()
+            mock_lkapi.agent_dispatch.create_dispatch.assert_called_once()
+
     @pytest.mark.asyncio
     async def test_token_default_persona(self):
-        from fastapi import FastAPI
         from httpx import ASGITransport, AsyncClient
+        from unittest.mock import AsyncMock
 
-        app = FastAPI()
-        app.include_router(router)
+        app = _make_app()
 
-        with patch("talker.routes.livekit.get_settings") as mock_settings:
+        with (
+            patch("talker.routes.livekit.get_settings") as mock_settings,
+            patch("talker.routes.livekit.api.LiveKitAPI") as mock_lkapi_cls,
+            patch("talker.routes.livekit.create_trace", return_value=None),
+        ):
             settings = mock_settings.return_value
             settings.livekit_api_key = "devkey"
             settings.livekit_api_secret = "secret-that-is-at-least-32-chars-long!"
             settings.livekit_url = "wss://test.livekit.cloud"
+
+            mock_lkapi = mock_lkapi_cls.return_value
+            mock_lkapi.room.create_room = AsyncMock()
+            mock_lkapi.agent_dispatch.create_dispatch = AsyncMock()
+            mock_lkapi.aclose = AsyncMock()
 
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"

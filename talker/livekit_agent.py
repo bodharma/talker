@@ -77,14 +77,14 @@ def _build_agent(persona_name: str) -> tuple[Agent, list[BaseCapability], str]:
         )
         config = PERSONAS["receptionist"]
 
-    agent: Agent = config["agent_class"]()
     capabilities = [cap_cls() for cap_cls in config["capabilities"]]
 
-    # Inject capability tools into the agent
+    # Collect capability tools to pass through the public constructor
+    cap_tools = []
     for cap in capabilities:
-        cap_tools = cap.get_tools()
-        if cap_tools:
-            agent._tools.extend(cap_tools)
+        cap_tools.extend(cap.get_tools())
+
+    agent: Agent = config["agent_class"](extra_tools=cap_tools)
 
     return agent, capabilities, config["greeting"]
 
@@ -97,7 +97,6 @@ def _build_agent(persona_name: str) -> tuple[Agent, list[BaseCapability], str]:
 async def _process_audio_stream(
     track: rtc.RemoteAudioTrack,
     capabilities: list[BaseCapability],
-    agent: Agent,
 ):
     """Collect audio frames from a participant track and feed to capabilities."""
     audio_stream = rtc.AudioStream(track)
@@ -120,11 +119,10 @@ async def _process_audio_stream(
 
             for cap in capabilities:
                 try:
-                    results = await cap.process_audio(audio, sample_rate)
-                    context_prompt = cap.get_context_prompt(results)
-                    if context_prompt:
-                        # Inject into agent's context for next LLM turn
-                        agent._extra_context = getattr(agent, "_extra_context", "") + context_prompt
+                    await cap.process_audio(audio, sample_rate)
+                    # Results are stored in the capability's module-level state
+                    # and exposed via get_voice_analysis / get_voice_trend tools
+                    # that the LLM can call on demand.
                 except Exception as e:
                     import logging
                     logging.getLogger(__name__).warning("Capability %s failed: %s", cap.name, e)
@@ -176,7 +174,7 @@ async def talker_session(ctx: agents.JobContext):
         def on_track_subscribed(track: rtc.Track, *_):
             if track.kind == rtc.TrackKind.KIND_AUDIO:
                 asyncio.create_task(
-                    _process_audio_stream(track, capabilities, agent)
+                    _process_audio_stream(track, capabilities)
                 )
 
     await session.start(

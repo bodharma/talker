@@ -495,19 +495,19 @@ Style:
 class ReceptionistAgent(Agent):
     """The Shard receptionist — greets guests and helps them find their way."""
 
-    def __init__(self) -> None:
+    def __init__(self, extra_tools: list | None = None) -> None:
         from talker.services.tracing import get_prompt
 
         instructions = get_prompt("talker-receptionist", RECEPTIONIST_INSTRUCTIONS)
-        super().__init__(
-            instructions=instructions,
-            tools=[
-                lookup_tenant,
-                check_availability,
-                get_building_info,
-                get_weather,
-                recognize_visitor,
-                register_visitor,
-                log_visitor,
-            ],
-        )
+        tools = [
+            lookup_tenant,
+            check_availability,
+            get_building_info,
+            get_weather,
+            recognize_visitor,
+            register_visitor,
+            log_visitor,
+        ]
+        if extra_tools:
+            tools.extend(extra_tools)
+        super().__init__(instructions=instructions, tools=tools)
