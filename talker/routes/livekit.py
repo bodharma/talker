@@ -93,6 +93,20 @@ async def create_livekit_token(request: Request):
         .to_jwt()
     )
 
+    # Create the room and dispatch the agent explicitly
+    lkapi = api.LiveKitAPI(
+        url=settings.livekit_url.replace("wss://", "https://"),
+        api_key=settings.livekit_api_key,
+        api_secret=settings.livekit_api_secret,
+    )
+    try:
+        await lkapi.room.create_room(api.CreateRoomRequest(name=room_name, empty_timeout=300))
+        await lkapi.agent_dispatch.create_dispatch(
+            api.CreateAgentDispatchRequest(room=room_name, agent_name="talker")
+        )
+    finally:
+        await lkapi.aclose()
+
     log.info("LiveKit token generated: room=%s persona=%s", room_name, persona)
 
     return JSONResponse({
