@@ -1,7 +1,7 @@
 # Talker — Architecture Document
 
 **Last updated:** 2026-03-11
-**Status:** Phases 1-3 complete, Phase 4 planned
+**Status:** All phases (1-4) complete
 
 ## What Is Talker?
 
@@ -309,11 +309,11 @@ graph TB
         P3_4["Data export<br/>JSON + CSV"]
     end
 
-    subgraph "⬜ NOT YET — Phase 4"
-        P4_1["Multi-user auth"]
+    subgraph "✅ DONE — Phase 4"
+        P4_1["Multi-user auth<br/>roles, OAuth, invites"]
         P4_2["Scheduling + reminders"]
         P4_3["Longitudinal tracking<br/>symptom trends over time"]
-        P4_4["Public deployment prep"]
+        P4_4["Public deployment prep<br/>security headers, rate limiting"]
     end
 
     style P1_1 fill:#d4edda
@@ -339,9 +339,13 @@ graph TB
     style P3_2 fill:#d4edda
     style P3_3 fill:#d4edda
     style P3_4 fill:#d4edda
+    style P4_1 fill:#d4edda
+    style P4_2 fill:#d4edda
+    style P4_3 fill:#d4edda
+    style P4_4 fill:#d4edda
 ```
 
-### What works today (Phases 1-3)
+### What works today (Phases 1-4)
 
 | Component | Status | Tests | Notes |
 |---|---|---|---|
@@ -375,7 +379,11 @@ graph TB
 | Voice WebSocket | ✅ | — | Full voice assessment flow (screening + conversation) |
 | Voice UI | ✅ | — | Dedicated voice page with mic capture, transcript, TTS playback |
 | Clinical knowledge base | ✅ | — | 12 markdown docs (clinical, psychoeducation, resources) |
-| **Total tests** | | **103** | All passing, ruff clean |
+| Multi-user auth | ✅ | 10 | Roles (admin/clinician/patient), OAuth (Google/Apple), invites, rate limiting |
+| Scheduling | ✅ | 2 | Recurrence (weekly/biweekly/monthly), due tracking |
+| Longitudinal trends | ✅ | 1 | Score history, trend direction, Chart.js visualization |
+| Deployment prep | ✅ | 3 | Security headers, health endpoint, trusted hosts |
+| **Total tests** | | **119** | All passing, ruff clean |
 
 ### Known limitations
 
@@ -520,10 +528,11 @@ gantt
         Local LLM (Ollama)            :done, p3b, 2026-03, 2026-03
         Session memory                :done, p3c, 2026-03, 2026-03
         Data export (JSON/CSV)        :done, p3d, 2026-03, 2026-03
-    section Phase 4
-        Multi-user auth               :p4a, 2026-04, 2026-05
-        Longitudinal tracking         :p4b, 2026-04, 2026-05
-        Public deployment             :p4c, 2026-05, 2026-06
+    section Phase 4 (Done)
+        Multi-user auth               :done, p4a, 2026-03, 2026-03
+        Scheduling + reminders        :done, p4b, 2026-03, 2026-03
+        Longitudinal tracking         :done, p4c, 2026-03, 2026-03
+        Deployment prep               :done, p4d, 2026-03, 2026-03
 ```
 
 ---

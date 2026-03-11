@@ -14,11 +14,12 @@ wheels/
 .env.*
 !.env.example
 
-# IDE / tool configs
-.claude/
-.superpowers/
-.gitnexus
+# IDE / editor configs
+.idea/
+.vscode/
+*.swp
+*.swo
 
-# Docs — local plans/specs (not for public)
+# Local docs (drafts, internal notes)
 docs/plans/
 docs/specs/
