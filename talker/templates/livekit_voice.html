@@ -135,6 +135,41 @@
         color: var(--text-muted);
         font-size: 0.8rem;
     }
+    .demo-hints {
+        background: var(--bg-card);
+        border: 1px dashed var(--border);
+        border-radius: var(--radius);
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    .demo-hints summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: var(--text);
+        font-size: 0.85rem;
+    }
+    .demo-hints h4 {
+        margin: 0.6rem 0 0.25rem;
+        font-size: 0.8rem;
+        color: var(--text);
+    }
+    .demo-hints ul {
+        margin: 0;
+        padding-left: 1.2rem;
+    }
+    .demo-hints li {
+        margin-bottom: 0.2rem;
+    }
+    .demo-hints code {
+        background: var(--bg);
+        padding: 0.1rem 0.3rem;
+        border-radius: 3px;
+        font-size: 0.78rem;
+    }
 </style>
 {% endblock %}
 
@@ -144,6 +179,45 @@
         <strong id="persona-label">{{ persona|title }}</strong>
         <span id="connection-badge" class="state-badge state-connecting">Connecting</span>
     </div>
+
+    {% if persona in ('receptionist', 'receptionist-basic') %}
+    <details class="demo-hints">
+        <summary>Demo cheat sheet</summary>
+
+        <h4>Try saying</h4>
+        <ul>
+            <li><code>Hi, I'm here to see Sarah Chen at Deloitte</code></li>
+            <li><code>I have a meeting with James Wardle</code> (he's out today)</li>
+            <li><code>I'm looking for Priya Kapoor</code> (she's in a meeting until 3pm)</li>
+            <li><code>Where can I get a coffee?</code></li>
+            <li><code>How do I get to the observation deck?</code></li>
+            <li><code>What's the weather like up there today?</code></li>
+            <li><code>Where's the nearest parking?</code></li>
+        </ul>
+
+        <h4>Building directory</h4>
+        <ul>
+            <li><strong>Deloitte</strong> &mdash; Floor 18, contact: Sarah Chen</li>
+            <li><strong>Wardle Partners</strong> (law) &mdash; Floor 12, contact: James Wardle</li>
+            <li><strong>Foresight Analytics</strong> &mdash; Floor 25, contact: Priya Kapoor</li>
+            <li><strong>Meridian Health</strong> &mdash; Floor 8, contact: Dr. Tom Blake</li>
+            <li><strong>Shangri-La Hotel</strong> &mdash; Floors 34-52</li>
+            <li><strong>Oblix Restaurant</strong> &mdash; Floor 32</li>
+            <li><strong>Aqua Shard</strong> &mdash; Floor 31</li>
+            <li><strong>The View</strong> (observation) &mdash; Floors 68-72</li>
+        </ul>
+
+        <h4>Features to test</h4>
+        <ul>
+            <li>Visitor registration &mdash; give your name and email when asked</li>
+            <li>Returning visitor recognition &mdash; use the same email in a second session</li>
+            <li>Unavailability handling &mdash; ask for James Wardle or Priya Kapoor</li>
+            <li>Building info &mdash; ask about Wi-Fi, bathrooms, lifts, restaurants, taxis</li>
+            <li>Weather &mdash; ask about the weather or the view</li>
+        </ul>
+    </details>
+    {% endif %}
+
     <div id="transcript"></div>
     <div class="voice-controls">
         <div id="agent-speaking" class="agent-speaking">
