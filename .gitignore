@@ -8,5 +8,17 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# IDE / tool configs
+.claude/
 .superpowers/
 .gitnexus
+
+# Docs — local plans/specs (not for public)
+docs/plans/
+docs/specs/
