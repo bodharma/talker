@@ -26,6 +26,10 @@ class VoiceClient {
     }
 
     async startMic() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            this._setStatus("Mic requires HTTPS — check your connection");
+            return;
+        }
         try {
             this.stream = await navigator.mediaDevices.getUserMedia({
                 audio: { sampleRate: 16000, channelCount: 1 }
