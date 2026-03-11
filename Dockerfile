@@ -1,23 +1,25 @@
 FROM python:3.12-slim
 
-# System dependencies (WeasyPrint + build tools for praat-parselmouth)
+# Runtime dependencies for WeasyPrint
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
     libgdk-pixbuf-2.0-0 \
     libffi-dev \
     libcairo2 \
-    build-essential \
-    cmake \
     && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
+# Install dependencies (cached until pyproject.toml changes)
 COPY pyproject.toml .
-RUN pip install --no-cache-dir .
+RUN uv pip install --system --no-cache -r pyproject.toml
 
+# Copy source and install package only
 COPY . .
-RUN pip install --no-cache-dir -e .
+RUN uv pip install --system --no-cache --no-deps -e .
 
 EXPOSE 8000
 
