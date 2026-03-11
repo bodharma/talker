@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<nav style="display:flex;gap:1.5rem;margin-bottom:2rem;padding:0.75rem 0;border-bottom:1px solid var(--border);">
+    <a href="/admin/" style="font-weight:{% if active_page == 'sessions' %}700{% else %}400{% endif %};">Sessions</a>
+    <a href="/admin/safety" style="font-weight:{% if active_page == 'safety' %}700{% else %}400{% endif %};">Safety Events</a>
+    <a href="/admin/stats" style="font-weight:{% if active_page == 'stats' %}700{% else %}400{% endif %};">Stats</a>
+    <a href="/admin/knowledge" style="font-weight:{% if active_page == 'knowledge' %}700{% else %}400{% endif %};">Knowledge</a>
+    <a href="/admin/logout" style="margin-left:auto;color:var(--text-muted);">Logout</a>
+</nav>
+{% block admin_content %}{% endblock %}
+{% endblock %}

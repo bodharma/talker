@@ -1,0 +1,83 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Admin — Sessions{% endblock %}
+{% block admin_content %}
+<h1>Sessions</h1>
+
+<form method="get" action="/admin/" style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+    <select name="state" style="padding:0.4rem;border:1px solid var(--border);border-radius:6px;">
+        <option value="">All States</option>
+        {% for s in ["screening", "follow_up", "completed", "abandoned"] %}
+        <option value="{{ s }}" {% if filters.state == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+    </select>
+    <select name="severity" style="padding:0.4rem;border:1px solid var(--border);border-radius:6px;">
+        <option value="">All Severities</option>
+        {% for s in ["minimal", "mild", "moderate", "moderately severe", "severe"] %}
+        <option value="{{ s }}" {% if filters.severity == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+    </select>
+    <input type="date" name="date_from" value="{{ filters.date_from or '' }}"
+           style="padding:0.4rem;border:1px solid var(--border);border-radius:6px;" placeholder="From">
+    <input type="date" name="date_to" value="{{ filters.date_to or '' }}"
+           style="padding:0.4rem;border:1px solid var(--border);border-radius:6px;" placeholder="To">
+    <label style="display:flex;align-items:center;gap:0.3rem;">
+        <input type="checkbox" name="has_safety" value="1" {% if filters.has_safety_events %}checked{% endif %}>
+        Safety events only
+    </label>
+    <button type="submit" class="btn btn-secondary" style="padding:0.4rem 1rem;">Filter</button>
+</form>
+
+<div style="margin-bottom:1rem;display:flex;gap:0.5rem;">
+    <a href="/admin/export/json" class="btn btn-secondary" style="padding:0.4rem 1rem;">Export JSON</a>
+    <a href="/admin/export/csv" class="btn btn-secondary" style="padding:0.4rem 1rem;">Export CSV</a>
+</div>
+
+<div class="card" style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;">
+        <thead>
+            <tr style="border-bottom:2px solid var(--border);text-align:left;">
+                <th style="padding:0.5rem;">ID</th>
+                <th style="padding:0.5rem;">Date</th>
+                <th style="padding:0.5rem;">State</th>
+                <th style="padding:0.5rem;">Instruments</th>
+                <th style="padding:0.5rem;">Severity</th>
+                <th style="padding:0.5rem;">Safety</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in sessions %}
+            <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:0.5rem;"><a href="/admin/sessions/{{ s.id }}">{{ s.id[:8] }}...</a></td>
+                <td style="padding:0.5rem;">{{ s.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td style="padding:0.5rem;">{{ s.state }}</td>
+                <td style="padding:0.5rem;">{{ s.instruments | join(', ') | upper }}</td>
+                <td style="padding:0.5rem;">
+                    <span class="severity-{{ s.highest_severity.replace(' ', '-') }}">{{ s.highest_severity }}</span>
+                </td>
+                <td style="padding:0.5rem;">
+                    {% if s.safety_event_count > 0 %}
+                    <span style="color:var(--danger);font-weight:600;">{{ s.safety_event_count }}</span>
+                    {% else %}
+                    0
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" style="padding:1rem;text-align:center;color:var(--text-muted);">No sessions found</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if total_pages > 1 %}
+<div style="display:flex;justify-content:center;gap:1rem;margin-top:1rem;">
+    {% if filters.page > 1 %}
+    <a href="?page={{ filters.page - 1 }}&state={{ filters.state or '' }}&severity={{ filters.severity or '' }}" class="btn btn-secondary">Previous</a>
+    {% endif %}
+    <span style="padding:0.5rem;">Page {{ filters.page }} of {{ total_pages }}</span>
+    {% if filters.page < total_pages %}
+    <a href="?page={{ filters.page + 1 }}&state={{ filters.state or '' }}&severity={{ filters.severity or '' }}" class="btn btn-secondary">Next</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

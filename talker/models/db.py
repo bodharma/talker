@@ -30,6 +30,7 @@ class Session(Base):
     current_answers: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    admin_notes: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     screenings: Mapped[list["SessionScreening"]] = relationship(
         back_populates="session", order_by="SessionScreening.created_at"
     )

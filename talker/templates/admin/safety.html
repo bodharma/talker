@@ -1,0 +1,48 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Admin — Safety Events{% endblock %}
+{% block admin_content %}
+<h1>Safety Events</h1>
+<p style="color:var(--text-muted);margin-bottom:1rem;">{{ total }} total safety events</p>
+
+<form method="get" action="/admin/safety" style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+    <input type="date" name="date_from" value="{{ date_from }}"
+           style="padding:0.4rem;border:1px solid var(--border);border-radius:6px;">
+    <input type="date" name="date_to" value="{{ date_to }}"
+           style="padding:0.4rem;border:1px solid var(--border);border-radius:6px;">
+    <select name="agent" style="padding:0.4rem;border:1px solid var(--border);border-radius:6px;">
+        <option value="">All Agents</option>
+        {% for a in ["screener", "conversation", "voice"] %}
+        <option value="{{ a }}" {% if agent == a %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-secondary" style="padding:0.4rem 1rem;">Filter</button>
+</form>
+
+{% for e in events %}
+<div class="card" style="border-left:3px solid var(--danger);margin-bottom:0.75rem;">
+    <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:var(--text-muted);">
+        <span>{{ e.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+        <span>Agent: {{ e.agent }}</span>
+    </div>
+    <div style="margin-top:0.25rem;">
+        <a href="/admin/sessions/{{ e.session_id }}" style="font-size:0.85rem;">Session {{ e.session_id[:8] }}...</a>
+    </div>
+    <div style="font-weight:600;color:var(--danger);margin-top:0.25rem;">Trigger: "{{ e.trigger }}"</div>
+    <div style="font-size:0.9rem;margin-top:0.25rem;color:var(--text-muted);">{{ e.message_shown[:200] }}{% if e.message_shown | length > 200 %}...{% endif %}</div>
+</div>
+{% else %}
+<p style="color:var(--text-muted);">No safety events found</p>
+{% endfor %}
+
+{% if total_pages > 1 %}
+<div style="display:flex;justify-content:center;gap:1rem;margin-top:1rem;">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}&date_from={{ date_from }}&date_to={{ date_to }}&agent={{ agent }}" class="btn btn-secondary">Previous</a>
+    {% endif %}
+    <span style="padding:0.5rem;">Page {{ page }} of {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}&date_from={{ date_from }}&date_to={{ date_to }}&agent={{ agent }}" class="btn btn-secondary">Next</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

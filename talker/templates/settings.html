@@ -29,11 +29,38 @@
 </div>
 
 <div class="card">
-    <h2>Models</h2>
-    <p style="color:var(--text-muted);margin-bottom:0.5rem;">Current model configuration (set via environment variables)</p>
+    <h2>LLM Provider</h2>
+    <p style="color:var(--text-muted);margin-bottom:0.5rem;">Current LLM provider and model configuration (set via environment variables)</p>
     <div style="display:grid;gap:0.5rem;">
-        <div><strong>Conversation:</strong> {{ conversation_model }}</div>
-        <div><strong>Screener:</strong> {{ screener_model }}</div>
+        <div style="display:flex;justify-content:space-between;">
+            <span>Active Provider</span>
+            <span><strong>{{ llm_provider }}</strong></span>
+        </div>
+        {% if llm_provider == 'ollama' %}
+        <div style="display:flex;justify-content:space-between;">
+            <span>Ollama Model</span>
+            <span>{{ ollama_chat_model }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+            <span>Ollama Endpoint</span>
+            <span>{{ ollama_base_url }}</span>
+        </div>
+        {% else %}
+        <div style="display:flex;justify-content:space-between;">
+            <span>Conversation Model</span>
+            <span>{{ conversation_model }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+            <span>Screener Model</span>
+            <span>{{ screener_model }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+            <span>OpenRouter API Key</span>
+            <span style="color: {{ 'var(--accent)' if openrouter_configured else 'var(--danger)' }};">
+                {{ 'Configured' if openrouter_configured else 'Not set (will fallback to Ollama)' }}
+            </span>
+        </div>
+        {% endif %}
     </div>
 </div>
 

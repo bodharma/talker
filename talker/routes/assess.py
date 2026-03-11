@@ -4,11 +4,10 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openrouter import OpenRouterProvider
 
 from talker.agents.orchestrator import Orchestrator
 from talker.config import get_settings
+from talker.services.llm import create_agent_model
 from talker.models.schemas import SessionState
 from talker.services.instruments import InstrumentLoader
 from talker.services.session_repo import SessionRepository
@@ -193,11 +192,6 @@ async def _get_llm_response(
     db=None,
 ) -> str:
     settings = get_settings()
-    if not settings.openrouter_api_key:
-        return (
-            "Thank you for sharing that. Could you tell me more about "
-            "how this has been affecting your daily life?"
-        )
 
     ctx = orch.get_conversation_context(session)
 
@@ -215,15 +209,29 @@ async def _get_llm_response(
         except Exception:
             pass  # RAG is best-effort, conversation works without it
 
-    if rag_context:
-        system_prompt = orch.conversation.build_system_prompt_with_rag(ctx, rag_context)
-    else:
-        system_prompt = orch.conversation.build_system_prompt(ctx)
+    # Cross-session memory
+    prior_context = ""
+    if db:
+        try:
+            from talker.services.session_memory import SessionMemoryService
 
-    model = OpenAIChatModel(
-        settings.openrouter_model_conversation,
-        provider=OpenRouterProvider(api_key=settings.openrouter_api_key),
-    )
+            memory_svc = SessionMemoryService(db)
+            prior_context = await memory_svc.get_prior_context(
+                current_session_id=session.id
+            )
+        except Exception:
+            pass  # Session memory is best-effort
+
+    if rag_context:
+        system_prompt = orch.conversation.build_system_prompt_with_rag(
+            ctx, rag_context, prior_context=prior_context
+        )
+    else:
+        system_prompt = orch.conversation.build_system_prompt_with_memory(
+            ctx, prior_context=prior_context
+        )
+
+    model = create_agent_model(settings, role="conversation")
     agent = Agent(model, system_prompt=system_prompt)
 
     history_text = "\n".join(

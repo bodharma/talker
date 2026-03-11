@@ -48,11 +48,20 @@ Respond conversationally. Keep responses concise (2-3 sentences max) and end wit
 
         return self.SYSTEM_PROMPT_TEMPLATE.format(screening_summary=screening_summary)
 
+    def build_system_prompt_with_memory(
+        self, context: ConversationContext, prior_context: str = ""
+    ) -> str:
+        """Build system prompt with optional cross-session memory."""
+        base = self.build_system_prompt(context)
+        if prior_context:
+            base = f"{base}\n\n{prior_context}"
+        return base
+
     def build_system_prompt_with_rag(
-        self, context: ConversationContext, rag_context: str
+        self, context: ConversationContext, rag_context: str, prior_context: str = ""
     ) -> str:
         """Build system prompt enhanced with RAG-retrieved knowledge."""
         from talker.agents.rag_tools import build_rag_enhanced_prompt
 
-        base = self.build_system_prompt(context)
+        base = self.build_system_prompt_with_memory(context, prior_context)
         return build_rag_enhanced_prompt(base, rag_context)

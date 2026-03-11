@@ -1,7 +1,7 @@
 # Talker — Architecture Document
 
 **Last updated:** 2026-03-11
-**Status:** Phase 1 MVP + DB persistence + Voice I/O implemented, Phases 2-4 planned
+**Status:** Phases 1-3 complete, Phase 4 planned
 
 ## What Is Talker?
 
@@ -29,13 +29,21 @@ graph TB
     end
 
     subgraph "Services Layer"
-        LLM["LLM Service<br/>OpenRouter + PydanticAI"]
+        LLM["LLM Service<br/>OpenRouter / Ollama"]
         TRACE["Tracing<br/>Langfuse"]
         INSTR["Instrument Loader<br/>YAML-driven"]
         DB["Database<br/>PostgreSQL + SQLAlchemy"]
         TOOLS["Agent Tools<br/>Triage, Scoring"]
         VPROV["Voice Provider<br/>Local or Cloud"]
         VFEAT["Voice Features<br/>Parselmouth"]
+        RAG["RAG Service<br/>pgvector + Embeddings"]
+        SMEM["Session Memory<br/>Cross-session context"]
+    end
+
+    subgraph "Admin Panel"
+        ADMIN["Admin Routes<br/>/admin/*"]
+        AREPO["Admin Repository<br/>Stats, Safety, Audit"]
+        EXPORT["Export Service<br/>JSON + CSV"]
     end
 
     WEB --> ORCH
@@ -46,12 +54,17 @@ graph TB
     ORCH --> TOOLS
     SCREEN --> INSTR
     CONV --> LLM
+    CONV --> RAG
+    CONV --> SMEM
     LLM --> TRACE
     ORCH --> DB
     VOICE --> VPROV
     VOICE --> VFEAT
     VOICE --> MAPPER
     MAPPER --> LLM
+    ADMIN --> AREPO
+    ADMIN --> EXPORT
+    AREPO --> DB
 ```
 
 **Why this architecture?**
@@ -177,21 +190,29 @@ graph LR
             SAFETY_F["safety.py"]
             TOOLS_F["tools.py"]
             VMAP_F["voice_mapper.py"]
+            RAGT_F["rag_tools.py"]
         end
 
         subgraph services/
-            LLM_F["llm.py"]
+            LLM_F["llm.py<br/>OpenRouter + Ollama"]
             TRACE_F["tracing.py"]
             INSTR_F["instruments.py"]
             DB_F["database.py"]
             REPO_F["session_repo.py"]
             VOICE_F["voice.py"]
             VFEAT_F["voice_features.py"]
+            EMB_F["embeddings.py"]
+            RAG_F["rag.py"]
+            ING_F["ingest.py"]
+            SMEM_F["session_memory.py"]
+            AREP_F["admin_repo.py"]
+            EXP_F["export.py"]
         end
 
         subgraph models/
             SCHEMA_F["schemas.py<br/>Pydantic models"]
             ORM_F["db.py<br/>SQLAlchemy ORM"]
+            KNOW_F["knowledge.py<br/>pgvector models"]
         end
 
         subgraph routes/
@@ -201,12 +222,20 @@ graph LR
             HIST_R["history.py → /history/*"]
             SET_R["settings.py → /settings"]
             REPORT_R["report.py → /report/*"]
+            ADMIN_R["admin.py → /admin/*"]
         end
 
         subgraph "templates/ + static/"
             TPL["Jinja2 templates<br/>base, index, assess_*,<br/>history, settings, report"]
+            ATPL["admin/ templates<br/>login, sessions, detail,<br/>safety, stats, knowledge"]
             CSS["style.css<br/>calming design"]
             JS["voice.js + audio-processor.js<br/>WebSocket voice client"]
+        end
+
+        subgraph knowledge/
+            CLIN["clinical/<br/>depression, anxiety,<br/>ptsd, adhd, comorbidity"]
+            PSYCH["psychoeducation/<br/>instrument guides,<br/>treatment approaches"]
+            RES["resources/<br/>crisis, finding therapist"]
         end
 
         subgraph instruments/
@@ -227,9 +256,11 @@ graph LR
 | **FastAPI** | Web framework | Async-native, Pydantic-first, great for both REST APIs and SSR with Jinja2 |
 | **Jinja2 (SSR)** | Templating | Server-side rendered = simple, no JS framework complexity. Works offline. Mental health tool should feel calm, not "app-like" |
 | **PydanticAI** | Agent framework | Type-safe agents with `deps_type`/`output_type`, built-in tool calling, works with any OpenAI-compatible provider |
-| **OpenRouter** | LLM provider | Access to Claude, GPT, Llama etc via single API. Easy model switching for conversation vs screener (different cost/quality tradeoffs) |
+| **OpenRouter** | LLM provider (cloud) | Access to Claude, GPT, Llama etc via single API. Easy model switching for conversation vs screener (different cost/quality tradeoffs) |
+| **Ollama** | LLM provider (local) | Local LLM fallback when no API key configured. Uses OpenAI-compatible endpoint |
 | **Langfuse** | LLM tracing | Trace every LLM call for quality auditing. Critical for a health-adjacent tool — need to verify conversation quality |
-| **PostgreSQL** | Storage | JSONB for flexible schema (raw answers, observations). pgvector extension ready for Phase 2 RAG |
+| **PostgreSQL + pgvector** | Storage + embeddings | JSONB for flexible schema. pgvector for RAG semantic search with cosine distance |
+| **Chart.js** | Admin visualizations | Lightweight charting (CDN) for voice features and stats dashboards |
 | **SQLAlchemy 2.0 async** | ORM | Async support, mapped columns, works well with FastAPI's async lifecycle |
 | **pydantic-settings** | Configuration | Type-safe `.env` loading, validation, defaults. No stringly-typed config |
 | **YAML instruments** | Screening definitions | Human-readable, clinician-editable, data-driven. No code per instrument |
@@ -267,15 +298,15 @@ graph TB
         P1_18["Voice answer mapping<br/>LLM natural language → scale values"]
     end
 
-    subgraph "⬜ NOT YET — Phase 2"
+    subgraph "✅ DONE — Phase 2"
         P2_2["RAG system<br/>pgvector embeddings + clinical knowledge"]
     end
 
-    subgraph "⬜ NOT YET — Phase 3"
-        P3_1["Admin panel<br/>audit sessions, safety events"]
-        P3_2["Local LLM fallback<br/>Ollama integration"]
+    subgraph "✅ DONE — Phase 3"
+        P3_1["Admin panel<br/>session audit, safety events,<br/>stats, knowledge mgmt"]
+        P3_2["Local LLM fallback<br/>Ollama integration + auto-fallback"]
         P3_3["Session memory<br/>cross-session context"]
-        P3_4["Export/import data"]
+        P3_4["Data export<br/>JSON + CSV"]
     end
 
     subgraph "⬜ NOT YET — Phase 4"
@@ -303,30 +334,39 @@ graph TB
     style P1_16 fill:#d4edda
     style P1_17 fill:#d4edda
     style P1_18 fill:#d4edda
+    style P2_2 fill:#d4edda
+    style P3_1 fill:#d4edda
+    style P3_2 fill:#d4edda
+    style P3_3 fill:#d4edda
+    style P3_4 fill:#d4edda
 ```
 
-### Phase 1 — What works today
+### What works today (Phases 1-3)
 
 | Component | Status | Tests | Notes |
 |---|---|---|---|
 | Config (pydantic-settings) | ✅ | — | `.env` loading, all keys with defaults |
 | Pydantic schemas | ✅ | 4 | SessionState, ScreeningResult, etc |
-| SQLAlchemy ORM | ✅ | — | User, Session, Screening, Conversation, SafetyEvent tables |
-| Alembic migrations | ✅ | — | Initial migration generated |
+| SQLAlchemy ORM | ✅ | — | User, Session, Screening, Conversation, SafetyEvent, Knowledge tables |
+| Alembic migrations | ✅ | — | 3 migrations (initial, knowledge tables, admin_notes) |
 | Instrument loader | ✅ | 5 | YAML parsing, scoring (sum + asrs_screener), flag rules |
 | PHQ-9, GAD-7, PCL-5, ASRS | ✅ | — | Complete YAML definitions |
-| LLM service | ✅ | 2 | OpenRouter via PydanticAI |
+| LLM service | ✅ | 6 | OpenRouter + Ollama fallback via PydanticAI |
 | Langfuse tracing | ✅ | — | Init, trace creation (no-op when unconfigured) |
 | Safety Monitor | ✅ | 6 | 10 crisis patterns, case-insensitive, 4 resource links |
 | Screener Agent | ✅ | 5 | Question-by-question, scoring, progress tracking |
-| Conversation Agent | ✅ | 3 | System prompt builder with screening context |
+| Conversation Agent | ✅ | 3 | System prompt builder with screening + RAG + memory context |
 | Orchestrator | ✅ | 7 | Stateless, DB-backed, replays answers to restore position |
-| Agent tools | ✅ | 5 | parse_instrument_selection, get_score_context, build_triage_prompt |
+| Agent tools | ✅ | 7 | parse_instrument_selection, get_score_context, build_clinical_query |
 | SessionRepository | ✅ | 10 | Full async CRUD: create, load, save answers/screenings/messages/summary |
+| RAG system | ✅ | 15 | Markdown chunking, embeddings (OpenAI/Ollama), pgvector search |
+| Session memory | ✅ | 2 | Cross-session context injection into prompts |
+| Admin panel | ✅ | 5 | Session audit, safety dashboard, stats, knowledge mgmt |
+| Data export | ✅ | 2 | JSON + CSV export from admin panel |
 | Web UI (home) | ✅ | — | Calming design, SSR |
 | Web UI (assessment) | ✅ | — | Instrument selection → screening → conversation → summary |
 | Web UI (history) | ✅ | — | DB-backed session list + detail views |
-| Web UI (settings) | ✅ | — | Service status + voice config display |
+| Web UI (settings) | ✅ | — | Service status, LLM provider, RAG, voice config |
 | Docker Compose | ✅ | — | App + PostgreSQL, auto-migrations on startup |
 | Report generation | ✅ | 8 | PDF/HTML via WeasyPrint, download from summary + history |
 | Voice providers | ✅ | 6 | Local (faster-whisper + Piper) and cloud (Deepgram + ElevenLabs) |
@@ -334,12 +374,13 @@ graph TB
 | Voice answer mapper | ✅ | 4 | LLM-powered natural language → screening scale value mapping |
 | Voice WebSocket | ✅ | — | Full voice assessment flow (screening + conversation) |
 | Voice UI | ✅ | — | Dedicated voice page with mic capture, transcript, TTS playback |
-| **Total tests** | | **71** | All passing, ruff clean |
+| Clinical knowledge base | ✅ | — | 12 markdown docs (clinical, psychoeducation, resources) |
+| **Total tests** | | **103** | All passing, ruff clean |
 
-### Phase 1 — Known limitations
+### Known limitations
 
-- **Conversation falls back to static response** when `OPENROUTER_API_KEY` is not set
-- **Voice answer mapping falls back to low confidence** when `OPENROUTER_API_KEY` is not set
+- **Voice answer mapping falls back to low confidence** when no LLM provider is available
+- **pgvector required** for RAG/knowledge features (gracefully skipped when unavailable)
 
 ---
 
@@ -468,20 +509,21 @@ gantt
     dateFormat YYYY-MM
     section Phase 1 (Done)
         Core agents + Web UI          :done, p1, 2026-03, 2026-03
-    section Phase 2 (Next)
+    section Phase 2 (Done)
         Voice I/O (WebSocket + STT/TTS) :done, p2a, 2026-03, 2026-03
         Voice features (Parselmouth)  :done, p2f, 2026-03, 2026-03
-        RAG system (pgvector)         :p2b, 2026-03, 2026-04
+        RAG system (pgvector)         :done, p2b, 2026-03, 2026-03
         DB persistence                :done, p2d, 2026-03, 2026-03
         Report generation             :done, p2e, 2026-03, 2026-03
-    section Phase 3
-        Admin panel                   :p3a, 2026-04, 2026-05
-        Local LLM (Ollama)            :p3b, 2026-04, 2026-05
-        Session memory                :p3c, 2026-05, 2026-05
+    section Phase 3 (Done)
+        Admin panel                   :done, p3a, 2026-03, 2026-03
+        Local LLM (Ollama)            :done, p3b, 2026-03, 2026-03
+        Session memory                :done, p3c, 2026-03, 2026-03
+        Data export (JSON/CSV)        :done, p3d, 2026-03, 2026-03
     section Phase 4
-        Multi-user auth               :p4a, 2026-05, 2026-06
-        Longitudinal tracking         :p4b, 2026-05, 2026-06
-        Public deployment             :p4c, 2026-06, 2026-06
+        Multi-user auth               :p4a, 2026-04, 2026-05
+        Longitudinal tracking         :p4b, 2026-04, 2026-05
+        Public deployment             :p4c, 2026-05, 2026-06
 ```
 
 ---

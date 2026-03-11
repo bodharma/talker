@@ -1,0 +1,50 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Admin — Knowledge Base{% endblock %}
+{% block admin_content %}
+<h1>Knowledge Base</h1>
+
+{% if message %}
+<div style="padding:0.75rem;border-radius:6px;margin-bottom:1rem;
+            {% if 'Error' in message %}background:var(--danger);color:white;{% else %}background:#d4edda;{% endif %}">
+    {{ message | replace('+', ' ') }}
+</div>
+{% endif %}
+
+<div style="margin-bottom:1rem;">
+    <form method="post" action="/admin/knowledge/reingest" style="display:inline;">
+        <button type="submit" class="btn btn-primary" onclick="this.disabled=true;this.textContent='Ingesting...';">
+            Re-ingest Knowledge Base
+        </button>
+    </form>
+    <small style="color:var(--text-muted);margin-left:0.5rem;">
+        Scans <code>talker/knowledge/</code> and re-embeds all documents
+    </small>
+</div>
+
+<div class="card" style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;">
+        <thead>
+            <tr style="border-bottom:2px solid var(--border);text-align:left;">
+                <th style="padding:0.5rem;">Title</th>
+                <th style="padding:0.5rem;">Type</th>
+                <th style="padding:0.5rem;">File</th>
+                <th style="padding:0.5rem;">Chunks</th>
+                <th style="padding:0.5rem;">Ingested</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for doc in documents %}
+            <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:0.5rem;">{{ doc.title }}</td>
+                <td style="padding:0.5rem;">{{ doc.source_type }}</td>
+                <td style="padding:0.5rem;"><code style="font-size:0.8rem;">{{ doc.source_file }}</code></td>
+                <td style="padding:0.5rem;">{{ doc.chunk_count }}</td>
+                <td style="padding:0.5rem;">{{ doc.created_at.strftime('%Y-%m-%d %H:%M') if doc.created_at else '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="padding:1rem;text-align:center;color:var(--text-muted);">No documents ingested. Click Re-ingest to populate.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -4,8 +4,10 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
 from talker.config import get_settings
+from talker.routes.admin import router as admin_router
 from talker.routes.assess import router as assess_router
 from talker.routes.history import router as history_router
 from talker.routes.main import router as main_router
@@ -26,6 +28,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Talker", lifespan=lifespan)
+app.add_middleware(SessionMiddleware, secret_key=get_settings().app_secret_key)
 
 static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
@@ -36,3 +39,4 @@ app.include_router(history_router)
 app.include_router(report_router)
 app.include_router(voice_router)
 app.include_router(settings_router)
+app.include_router(admin_router)

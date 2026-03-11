@@ -1,0 +1,171 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Admin — Session {{ session.id | string | truncate(8, True, '') }}{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+{% endblock %}
+{% block admin_content %}
+<h1>Session {{ session.id | string | truncate(8, True, '') }}...</h1>
+<p style="color:var(--text-muted);">
+    Created: {{ session.created_at.strftime('%Y-%m-%d %H:%M') }} |
+    State: <strong>{{ session.state }}</strong> |
+    ID: <code>{{ session.id }}</code>
+    <a href="/admin/sessions/{{ session.id }}/export" class="btn btn-secondary" style="padding:0.3rem 0.75rem;font-size:0.85rem;">Export JSON</a>
+</p>
+
+<!-- Screening Results -->
+<div class="card">
+    <h2>Screening Results</h2>
+    {% if session.screenings %}
+    <table style="width:100%;border-collapse:collapse;">
+        <thead>
+            <tr style="border-bottom:2px solid var(--border);text-align:left;">
+                <th style="padding:0.5rem;">Instrument</th>
+                <th style="padding:0.5rem;">Score</th>
+                <th style="padding:0.5rem;">Severity</th>
+                <th style="padding:0.5rem;">Flagged Items</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in session.screenings %}
+            <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:0.5rem;">{{ s.instrument_id | upper }}</td>
+                <td style="padding:0.5rem;">{{ s.score }}</td>
+                <td style="padding:0.5rem;">
+                    <span class="severity-{{ s.severity.replace(' ', '-') }}">{{ s.severity }}</span>
+                </td>
+                <td style="padding:0.5rem;">{{ s.flagged_items | join(', ') if s.flagged_items else '—' }}</td>
+            </tr>
+            {% if s.raw_answers %}
+            <tr>
+                <td colspan="4" style="padding:0.25rem 0.5rem 0.75rem;">
+                    <details>
+                        <summary style="cursor:pointer;color:var(--text-muted);font-size:0.85rem;">Show answers</summary>
+                        <pre style="font-size:0.8rem;margin-top:0.25rem;background:var(--bg);padding:0.5rem;border-radius:4px;">{{ s.raw_answers | tojson(indent=2) }}</pre>
+                    </details>
+                </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--text-muted);">No screening results</p>
+    {% endif %}
+</div>
+
+<!-- Conversation Transcript -->
+<div class="card">
+    <h2>Conversation Transcript</h2>
+    {% if session.conversations %}
+    <div style="max-height:400px;overflow-y:auto;padding:0.5rem;">
+        {% for msg in session.conversations %}
+        <div style="margin-bottom:0.5rem;padding:0.5rem 0.75rem;border-radius:8px;
+                    {% if msg.role == 'user' %}background:var(--primary);color:white;margin-left:15%;
+                    {% else %}background:var(--bg);border:1px solid var(--border);margin-right:15%;{% endif %}">
+            <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;opacity:0.7;">{{ msg.role }}</div>
+            <div>{{ msg.content }}</div>
+            <div style="font-size:0.7rem;opacity:0.5;margin-top:0.25rem;">{{ msg.created_at.strftime('%H:%M:%S') }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted);">No conversation messages</p>
+    {% endif %}
+</div>
+
+<!-- Safety Events -->
+<div class="card">
+    <h2>Safety Events</h2>
+    {% if session.safety_events %}
+    {% for e in session.safety_events %}
+    <div style="border-left:3px solid var(--danger);padding:0.5rem 0.75rem;margin-bottom:0.75rem;background:var(--bg);border-radius:0 6px 6px 0;">
+        <div style="font-size:0.8rem;color:var(--text-muted);">{{ e.created_at.strftime('%Y-%m-%d %H:%M:%S') }} — {{ e.agent }}</div>
+        <div style="font-weight:600;color:var(--danger);">Trigger: "{{ e.trigger }}"</div>
+        <div style="font-size:0.9rem;margin-top:0.25rem;">{{ e.message_shown }}</div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p style="color:var(--text-muted);">No safety events</p>
+    {% endif %}
+</div>
+
+<!-- Voice Features -->
+{% if session.voice_features %}
+<div class="card">
+    <h2>Voice Features</h2>
+    <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+            <thead>
+                <tr style="border-bottom:2px solid var(--border);text-align:left;">
+                    <th style="padding:0.4rem;">#</th>
+                    <th style="padding:0.4rem;">Role</th>
+                    <th style="padding:0.4rem;">Pitch (Hz)</th>
+                    <th style="padding:0.4rem;">Jitter</th>
+                    <th style="padding:0.4rem;">Shimmer</th>
+                    <th style="padding:0.4rem;">HNR (dB)</th>
+                    <th style="padding:0.4rem;">Speech Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vf in session.voice_features %}
+                <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:0.4rem;">{{ vf.utterance_index }}</td>
+                    <td style="padding:0.4rem;">{{ vf.role }}</td>
+                    <td style="padding:0.4rem;">{{ '%.1f' | format(vf.features.get('pitch_mean', 0)) }}</td>
+                    <td style="padding:0.4rem;">{{ '%.4f' | format(vf.features.get('jitter', 0)) }}</td>
+                    <td style="padding:0.4rem;">{{ '%.4f' | format(vf.features.get('shimmer', 0)) }}</td>
+                    <td style="padding:0.4rem;">{{ '%.1f' | format(vf.features.get('hnr', 0)) }}</td>
+                    <td style="padding:0.4rem;">{{ '%.1f' | format(vf.features.get('speech_rate', 0)) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <canvas id="voiceChart" style="margin-top:1rem;max-height:300px;"></canvas>
+    <script>
+        const vfData = {{ session.voice_features | map(attribute='features') | list | tojson }};
+        const labels = vfData.map((_, i) => `#${i}`);
+        new Chart(document.getElementById('voiceChart'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Pitch Mean (Hz)',
+                        data: vfData.map(f => f.pitch_mean || 0),
+                        borderColor: 'rgb(108, 92, 231)',
+                        yAxisID: 'y',
+                    },
+                    {
+                        label: 'Intensity Mean (dB)',
+                        data: vfData.map(f => f.intensity_mean || 0),
+                        borderColor: 'rgb(0, 184, 148)',
+                        yAxisID: 'y1',
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { position: 'left', title: { display: true, text: 'Pitch (Hz)' } },
+                    y1: { position: 'right', title: { display: true, text: 'Intensity (dB)' }, grid: { drawOnChartArea: false } },
+                },
+            },
+        });
+    </script>
+</div>
+{% endif %}
+
+<!-- Admin Notes -->
+<div class="card">
+    <h2>Admin Notes</h2>
+    <form method="post" action="/admin/sessions/{{ session.id }}/notes">
+        <textarea name="notes" rows="4" style="width:100%;padding:0.5rem;border:1px solid var(--border);border-radius:6px;margin-bottom:0.5rem;"
+            >{{ (session.admin_notes or {}).get('notes', '') }}</textarea>
+        <button type="submit" class="btn btn-primary">Save Notes</button>
+        {% if session.admin_notes and session.admin_notes.get('updated_at') %}
+        <small style="color:var(--text-muted);margin-left:0.5rem;">Last updated: {{ session.admin_notes.updated_at }}</small>
+        {% endif %}
+    </form>
+</div>
+{% endblock %}

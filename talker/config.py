@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     elevenlabs_model: str = "eleven_multilingual_v2"
     elevenlabs_voice_id: str = ""
 
+    # LLM Provider
+    llm_provider: str = "openrouter"  # "openrouter" or "ollama"
+    ollama_chat_model: str = "llama3.2"
+
     # RAG
     embedding_provider: str = "openai"  # "openai" or "ollama"
     openai_api_key: str = ""
@@ -53,6 +57,10 @@ class Settings(BaseSettings):
     app_secret_key: str = "change-me-in-production"
     admin_token: str = "change-me-in-production"
     debug: bool = False
+
+    # Admin
+    admin_username: str = "admin"
+    admin_password: str = ""  # required for admin access
 
 
 @lru_cache

@@ -1,0 +1,77 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Admin — Stats{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+{% endblock %}
+{% block admin_content %}
+<h1>System Stats</h1>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2rem;">
+    <div class="card" style="text-align:center;">
+        <div style="font-size:2rem;font-weight:700;">{{ stats.total_sessions }}</div>
+        <div style="color:var(--text-muted);">Total Sessions</div>
+    </div>
+    <div class="card" style="text-align:center;">
+        <div style="font-size:2rem;font-weight:700;">{{ stats.completed_sessions }}</div>
+        <div style="color:var(--text-muted);">Completed</div>
+    </div>
+    <div class="card" style="text-align:center;">
+        <div style="font-size:2rem;font-weight:700;">{{ stats.completion_rate }}%</div>
+        <div style="color:var(--text-muted);">Completion Rate</div>
+    </div>
+    <div class="card" style="text-align:center;">
+        <div style="font-size:2rem;font-weight:700;color:{% if stats.safety_event_count > 0 %}var(--danger){% else %}var(--accent){% endif %};">
+            {{ stats.safety_event_count }}
+        </div>
+        <div style="color:var(--text-muted);">Safety Events</div>
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+    <div class="card">
+        <h2>Sessions by State</h2>
+        <canvas id="stateChart" style="max-height:300px;"></canvas>
+        <script>
+            const stateData = {{ stats.sessions_by_state | tojson }};
+            new Chart(document.getElementById('stateChart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(stateData),
+                    datasets: [{
+                        label: 'Sessions',
+                        data: Object.values(stateData),
+                        backgroundColor: 'rgba(108, 92, 231, 0.6)',
+                    }],
+                },
+                options: { responsive: true, plugins: { legend: { display: false } } },
+            });
+        </script>
+    </div>
+
+    <div class="card">
+        <h2>Average Scores by Instrument</h2>
+        {% if stats.avg_scores %}
+        <table style="width:100%;border-collapse:collapse;">
+            <thead>
+                <tr style="border-bottom:2px solid var(--border);text-align:left;">
+                    <th style="padding:0.5rem;">Instrument</th>
+                    <th style="padding:0.5rem;">Avg Score</th>
+                    <th style="padding:0.5rem;">Screenings</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in stats.avg_scores %}
+                <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:0.5rem;">{{ s.instrument_id | upper }}</td>
+                    <td style="padding:0.5rem;">{{ s.avg_score }}</td>
+                    <td style="padding:0.5rem;">{{ s.count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:var(--text-muted);">No screening data yet</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

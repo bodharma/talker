@@ -54,6 +54,9 @@ async def settings_page(request: Request):
             "openrouter_configured": bool(settings.openrouter_api_key),
             "langfuse_configured": bool(settings.langfuse_secret_key),
             "db_connected": True,
+            "llm_provider": settings.llm_provider,
+            "ollama_chat_model": settings.ollama_chat_model,
+            "ollama_base_url": settings.ollama_base_url,
             "conversation_model": settings.openrouter_model_conversation,
             "screener_model": settings.openrouter_model_screener,
             "instruments": instruments,
@@ -70,5 +73,6 @@ async def settings_page(request: Request):
             "rag_configured": bool(settings.openai_api_key),
             "embedding_provider": settings.embedding_provider,
             "embedding_model": settings.embedding_model,
+            "session_memory_enabled": True,
         },
     )
