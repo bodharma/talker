@@ -15,11 +15,15 @@ WORKDIR /app
 
 # Install dependencies (cached until pyproject.toml changes)
 COPY pyproject.toml .
-RUN uv pip install --system --no-cache -r pyproject.toml
+RUN uv pip install --system --no-cache -r pyproject.toml && \
+    uv pip install --system --no-cache torch --index-url https://download.pytorch.org/whl/cpu
 
 # Copy source and install package only
 COPY . .
 RUN uv pip install --system --no-cache --no-deps -e .
+
+# Bake LiveKit plugin models (Silero VAD, turn detector) into the image
+RUN python -m talker.livekit_agent download-files
 
 EXPOSE 8000
 

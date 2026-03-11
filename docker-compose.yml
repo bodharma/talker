@@ -85,7 +85,7 @@ services:
   agent:
     platform: linux/amd64
     build: .
-    command: ["python", "-m", "talker.livekit_agent", "--persona", "receptionist", "start"]
+    command: ["python", "-m", "talker.livekit_agent", "start"]
     environment:
       <<: *shared-env
     depends_on:

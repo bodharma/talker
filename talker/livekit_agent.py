@@ -1,8 +1,6 @@
 """LiveKit voice agent entrypoint — persona-driven voice AI with pluggable capabilities."""
 
-import argparse
 import asyncio
-import sys
 from typing import Any
 
 import numpy as np
@@ -72,8 +70,12 @@ def _build_agent(persona_name: str) -> tuple[Agent, list[BaseCapability], str]:
     """Build an agent instance with its capabilities wired in."""
     config = PERSONAS.get(persona_name)
     if not config:
-        print(f"Unknown persona: {persona_name}. Available: {', '.join(PERSONAS)}")
-        sys.exit(1)
+        import logging
+        logging.getLogger(__name__).warning(
+            "Unknown persona '%s', falling back to 'receptionist'. Available: %s",
+            persona_name, ", ".join(PERSONAS),
+        )
+        config = PERSONAS["receptionist"]
 
     agent: Agent = config["agent_class"]()
     capabilities = [cap_cls() for cap_cls in config["capabilities"]]
@@ -134,14 +136,21 @@ async def _process_audio_stream(
 # Agent session
 # ---------------------------------------------------------------------------
 
-_active_persona: str = "receptionist"
-
 server = AgentServer()
+
+
+def _persona_from_room(room_name: str) -> str:
+    """Extract persona from room name like 'talker-receptionist-abc123'."""
+    parts = room_name.split("-")
+    if len(parts) >= 3 and parts[0] == "talker":
+        return "-".join(parts[1:-1])  # handles 'receptionist-basic' etc.
+    return "receptionist"
 
 
 @server.rtc_session(agent_name="talker")
 async def talker_session(ctx: agents.JobContext):
-    agent, capabilities, greeting = _build_agent(_active_persona)
+    persona = _persona_from_room(ctx.room.name)
+    agent, capabilities, greeting = _build_agent(persona)
 
     # Use OpenRouter for LLM if configured, otherwise fall back to OpenAI
     settings = get_settings()
@@ -184,15 +193,4 @@ async def talker_session(ctx: agents.JobContext):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Talker LiveKit Agent")
-    parser.add_argument(
-        "--persona",
-        default="receptionist",
-        choices=list(PERSONAS.keys()),
-        help="Which persona to run (default: receptionist)",
-    )
-    args, remaining = parser.parse_known_args()
-    _active_persona = args.persona
-
-    sys.argv = [sys.argv[0]] + remaining
     agents.cli.run_app(server)
