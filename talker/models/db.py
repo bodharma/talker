@@ -38,6 +38,9 @@ class Session(Base):
     )
     summary: Mapped["SessionSummaryRecord | None"] = relationship(back_populates="session")
     safety_events: Mapped[list["SafetyEventRecord"]] = relationship(back_populates="session")
+    voice_features: Mapped[list["VoiceFeature"]] = relationship(
+        back_populates="session", order_by="VoiceFeature.created_at"
+    )
 
 
 class SessionScreening(Base):
@@ -93,3 +96,16 @@ class SafetyEventRecord(Base):
     resources_provided: Mapped[list] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     session: Mapped["Session"] = relationship(back_populates="safety_events")
+
+
+class VoiceFeature(Base):
+    __tablename__ = "voice_features"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[uuid_mod.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id")
+    )
+    utterance_index: Mapped[int] = mapped_column(Integer)
+    role: Mapped[str] = mapped_column(String(20), default="user")
+    features: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    session: Mapped["Session"] = relationship(back_populates="voice_features")
