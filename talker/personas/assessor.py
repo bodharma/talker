@@ -301,8 +301,11 @@ class AssessorAgent(Agent):
     """Psychology pre-assessment agent — screening + follow-up via voice."""
 
     def __init__(self) -> None:
+        from talker.services.tracing import get_prompt
+
+        instructions = get_prompt("talker-assessor", ASSESSOR_INSTRUCTIONS)
         super().__init__(
-            instructions=ASSESSOR_INSTRUCTIONS,
+            instructions=instructions,
             tools=[
                 list_available_instruments,
                 triage_symptoms,

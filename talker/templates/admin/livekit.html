@@ -1,7 +1,11 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}Admin — LiveKit{% endblock %}
 {% block admin_content %}
-<h1>LiveKit</h1>
+<h1>LiveKit
+    {% if status.connected %}
+    <a href="{{ livekit_dashboard }}" target="_blank" rel="noopener" style="font-size:0.8rem;font-weight:400;margin-left:0.75rem;">Open LiveKit Cloud &nearr;</a>
+    {% endif %}
+</h1>
 
 <!-- Connection Status -->
 <div class="card" style="padding:1rem;margin-bottom:1.5rem;">

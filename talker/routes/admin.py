@@ -127,6 +127,59 @@ async def admin_safety(request: Request):
     )
 
 
+async def _fetch_langfuse_metrics() -> dict | None:
+    """Fetch daily metrics from Langfuse API (last 30 days)."""
+    settings = get_settings()
+    if not settings.langfuse_secret_key:
+        return None
+
+    import httpx
+    from datetime import datetime, timedelta, timezone
+
+    base_url = settings.langfuse_host.rstrip("/")
+    from_ts = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{base_url}/api/public/metrics/daily",
+                params={"fromTimestamp": from_ts, "limit": 30},
+                auth=(settings.langfuse_public_key, settings.langfuse_secret_key),
+            )
+            resp.raise_for_status()
+            data = resp.json().get("data", [])
+    except Exception as e:
+        log.warning("Failed to fetch Langfuse metrics: %s", e)
+        return None
+
+    total_cost = sum(d.get("totalCost", 0) or 0 for d in data)
+    total_traces = sum(d.get("countTraces", 0) or 0 for d in data)
+    total_observations = sum(d.get("countObservations", 0) or 0 for d in data)
+
+    # Aggregate per-model usage
+    model_usage: dict[str, dict] = {}
+    daily_costs = []
+    for d in data:
+        daily_costs.append({"date": d["date"], "cost": d.get("totalCost", 0) or 0})
+        for u in d.get("usage", []):
+            model = u.get("model", "unknown")
+            if model not in model_usage:
+                model_usage[model] = {"input": 0, "output": 0, "total": 0, "cost": 0.0, "traces": 0}
+            model_usage[model]["input"] += u.get("inputUsage", 0) or 0
+            model_usage[model]["output"] += u.get("outputUsage", 0) or 0
+            model_usage[model]["total"] += u.get("totalUsage", 0) or 0
+            model_usage[model]["cost"] += u.get("totalCost", 0) or 0
+            model_usage[model]["traces"] += u.get("countTraces", 0) or 0
+
+    return {
+        "total_cost": round(total_cost, 4),
+        "total_traces": total_traces,
+        "total_observations": total_observations,
+        "model_usage": model_usage,
+        "daily_costs": sorted(daily_costs, key=lambda x: x["date"]),
+    }
+
+
 @router.get("/stats", dependencies=[Depends(verify_admin)])
 async def admin_stats(request: Request):
     session_factory = request.app.state.db_session_factory
@@ -134,10 +187,17 @@ async def admin_stats(request: Request):
         repo = AdminRepository(db)
         stats = await repo.get_stats()
 
+    langfuse = await _fetch_langfuse_metrics()
+
     return templates.TemplateResponse(
         request=request,
         name="admin/stats.html",
-        context={"stats": stats, "active_page": "stats"},
+        context={
+            "stats": stats,
+            "langfuse": langfuse,
+            "langfuse_host": get_settings().langfuse_host,
+            "active_page": "stats",
+        },
     )
 
 
@@ -325,6 +385,7 @@ async def admin_livekit(request: Request):
             "status": status,
             "rooms": rooms,
             "active_page": "livekit",
+            "livekit_dashboard": "https://cloud.livekit.io",
             "message": request.query_params.get("message"),
         },
     )

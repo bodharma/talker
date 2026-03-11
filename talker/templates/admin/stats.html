@@ -27,7 +27,7 @@
     </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:2rem;">
     <div class="card">
         <h2>Sessions by State</h2>
         <canvas id="stateChart" style="max-height:300px;"></canvas>
@@ -74,4 +74,90 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Langfuse LLM Costs & Usage -->
+{% if langfuse %}
+<h2 style="margin-bottom:1rem;">
+    LLM Costs & Usage <span style="font-size:0.8rem;color:var(--text-muted);font-weight:400;">(last 30 days)</span>
+    <a href="{{ langfuse_host }}" target="_blank" rel="noopener" style="font-size:0.8rem;font-weight:400;margin-left:0.75rem;">Open Langfuse &nearr;</a>
+</h2>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2rem;">
+    <div class="card" style="text-align:center;">
+        <div style="font-size:2rem;font-weight:700;">${{ langfuse.total_cost }}</div>
+        <div style="color:var(--text-muted);">Total Cost</div>
+    </div>
+    <div class="card" style="text-align:center;">
+        <div style="font-size:2rem;font-weight:700;">{{ langfuse.total_traces }}</div>
+        <div style="color:var(--text-muted);">Traces</div>
+    </div>
+    <div class="card" style="text-align:center;">
+        <div style="font-size:2rem;font-weight:700;">{{ langfuse.total_observations }}</div>
+        <div style="color:var(--text-muted);">Observations</div>
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:2rem;">
+    <div class="card">
+        <h3>Daily Cost Trend</h3>
+        <canvas id="costChart" style="max-height:300px;"></canvas>
+        <script>
+            const costData = {{ langfuse.daily_costs | tojson }};
+            new Chart(document.getElementById('costChart'), {
+                type: 'line',
+                data: {
+                    labels: costData.map(d => d.date.slice(5)),
+                    datasets: [{
+                        label: 'Cost ($)',
+                        data: costData.map(d => d.cost),
+                        borderColor: 'rgba(108, 92, 231, 0.8)',
+                        backgroundColor: 'rgba(108, 92, 231, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { callback: v => '$' + v.toFixed(3) } },
+                    },
+                },
+            });
+        </script>
+    </div>
+
+    <div class="card">
+        <h3>Usage by Model</h3>
+        {% if langfuse.model_usage %}
+        <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+            <thead>
+                <tr style="border-bottom:2px solid var(--border);text-align:left;">
+                    <th style="padding:0.4rem;">Model</th>
+                    <th style="padding:0.4rem;">Traces</th>
+                    <th style="padding:0.4rem;">Tokens</th>
+                    <th style="padding:0.4rem;">Cost</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for model, usage in langfuse.model_usage.items() %}
+                <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:0.4rem;"><code style="font-size:0.8rem;">{{ model }}</code></td>
+                    <td style="padding:0.4rem;">{{ usage.traces }}</td>
+                    <td style="padding:0.4rem;" title="In: {{ usage.input }} / Out: {{ usage.output }}">{{ usage.total }}</td>
+                    <td style="padding:0.4rem;">${{ "%.4f" | format(usage.cost) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:var(--text-muted);">No model usage data</p>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="card" style="padding:1rem;margin-top:1rem;color:var(--text-muted);">
+    Langfuse not configured — set <code>LANGFUSE_SECRET_KEY</code> and <code>LANGFUSE_PUBLIC_KEY</code> for LLM cost tracking.
+</div>
+{% endif %}
 {% endblock %}
