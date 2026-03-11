@@ -63,6 +63,14 @@ services:
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
 
+      # LiveKit pipeline — STT/LLM/TTS models
+      LIVEKIT_STT_MODEL: ${LIVEKIT_STT_MODEL:-deepgram/nova-3:multi}
+      LIVEKIT_LLM_MODEL: ${LIVEKIT_LLM_MODEL:-openai/gpt-4.1-mini}
+      LIVEKIT_TTS_MODEL: ${LIVEKIT_TTS_MODEL:-cartesia/sonic-3:9626c31c-bec5-4cca-baa8-f8ba9e84c8bc}
+
+      # Cartesia TTS (LiveKit pipeline)
+      CARTESIA_API_KEY: ${CARTESIA_API_KEY:-}
+
       # Weather API (receptionist persona)
       OPENWEATHERMAP_API_KEY: ${OPENWEATHERMAP_API_KEY:-}
     depends_on:

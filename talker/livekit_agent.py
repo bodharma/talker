@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from livekit import agents, rtc
 from livekit.agents import AgentServer, AgentSession, Agent, room_io
 from livekit.plugins import noise_cancellation, silero
+from livekit.plugins.openai import LLM
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 from talker.capabilities.base import BaseCapability
@@ -142,10 +143,20 @@ server = AgentServer()
 async def talker_session(ctx: agents.JobContext):
     agent, capabilities, greeting = _build_agent(_active_persona)
 
+    # Use OpenRouter for LLM if configured, otherwise fall back to OpenAI
+    settings = get_settings()
+    if settings.openrouter_api_key:
+        llm = LLM.with_openrouter(
+            model=settings.livekit_llm_model,
+            api_key=settings.openrouter_api_key,
+        )
+    else:
+        llm = settings.livekit_llm_model
+
     session = AgentSession(
-        stt="deepgram/nova-3:multi",
-        llm="openai/gpt-4.1-mini",
-        tts="cartesia/sonic-3:9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
+        stt=settings.livekit_stt_model,
+        llm=llm,
+        tts=settings.livekit_tts_model,
         vad=silero.VAD.load(),
         turn_detection=MultilingualModel(),
     )
