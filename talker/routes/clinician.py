@@ -1,5 +1,6 @@
 """Clinician dashboard routes."""
 
+import json
 import logging
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -79,12 +80,20 @@ async def clinician_patient_detail(request: Request, patient_id: int):
         session_result = await db.execute(session_stmt)
         sessions = session_result.scalars().all()
 
+        from talker.services.trends import TrendService
+
+        trend_svc = TrendService(db)
+        trend_summary = await trend_svc.get_trend_summary(patient_id)
+        chart_data = await trend_svc.get_chart_data(patient_id)
+
     return templates.TemplateResponse(
         request=request,
         name="clinician/patient_detail.html",
         context={
             "patient": patient,
             "sessions": sessions,
+            "trend_summary": trend_summary,
+            "chart_data_json": json.dumps(chart_data),
             "active_page": "patients",
         },
     )
@@ -136,3 +145,63 @@ async def clinician_create_invite(
     return RedirectResponse(
         url=f"/clinician/invite?message={msg}", status_code=303
     )
+
+
+@router.get("/schedule", dependencies=[Depends(verify_clinician)])
+async def clinician_schedule_page(request: Request):
+    user_id = request.session["user_id"]
+    session_factory = request.app.state.db_session_factory
+    async with session_factory() as db:
+        from talker.services.schedule import ScheduleService
+
+        svc = ScheduleService(db)
+        schedules = await svc.list_for_clinician(user_id)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="clinician/schedule.html",
+        context={"schedules": schedules, "active_page": "schedule"},
+    )
+
+
+@router.post("/schedule", dependencies=[Depends(verify_clinician)])
+async def clinician_create_schedule(
+    request: Request,
+    patient_id: int = Form(),
+    instruments: str = Form(),
+    recurrence: str = Form(default="weekly"),
+):
+    user_id = request.session["user_id"]
+    instrument_list = [i.strip() for i in instruments.split(",") if i.strip()]
+
+    session_factory = request.app.state.db_session_factory
+    async with session_factory() as db:
+        from talker.services.schedule import ScheduleService
+
+        svc = ScheduleService(db)
+        await svc.create_schedule(
+            clinician_id=user_id,
+            patient_id=patient_id,
+            instruments=instrument_list,
+            recurrence=recurrence,
+        )
+        await db.commit()
+
+    return RedirectResponse(
+        url="/clinician/schedule?message=Schedule+created", status_code=303
+    )
+
+
+@router.post(
+    "/schedule/{schedule_id}/deactivate", dependencies=[Depends(verify_clinician)]
+)
+async def clinician_deactivate_schedule(request: Request, schedule_id: int):
+    session_factory = request.app.state.db_session_factory
+    async with session_factory() as db:
+        from talker.services.schedule import ScheduleService
+
+        svc = ScheduleService(db)
+        await svc.deactivate(schedule_id)
+        await db.commit()
+
+    return RedirectResponse(url="/clinician/schedule", status_code=303)

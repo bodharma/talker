@@ -4,6 +4,35 @@
 <h1>{{ patient.name }}</h1>
 <p style="color:var(--text-muted);">{{ patient.email }}</p>
 
+{% if trend_summary %}
+<h2>Trends</h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;margin-bottom:1.5rem;">
+    {% for inst_id, data in trend_summary.items() %}
+    <div class="card" style="padding:0.75rem;">
+        <strong>{{ inst_id | upper }}</strong>
+        <div style="font-size:1.5rem;font-weight:700;">{{ data.latest_score }}</div>
+        <div style="font-size:0.85rem;color:var(--text-muted);">{{ data.latest_severity }}</div>
+        <div style="font-size:0.8rem;">
+            {% if data.direction == 'improving' %}
+            <span style="color:#059669;">Improving</span>
+            {% elif data.direction == 'worsening' %}
+            <span style="color:#dc2626;">Worsening</span>
+            {% elif data.direction == 'stable' %}
+            <span style="color:var(--text-muted);">Stable</span>
+            {% else %}
+            <span style="color:var(--text-muted);">Baseline</span>
+            {% endif %}
+            &middot; {{ data.session_count }} sessions
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="card" style="margin-bottom:1.5rem;">
+    <canvas id="patientTrendChart" style="width:100%;max-height:350px;"></canvas>
+</div>
+{% endif %}
+
 <h2>Sessions</h2>
 <div class="card" style="overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;">
@@ -33,4 +62,26 @@
         </tbody>
     </table>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if trend_summary %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<script>
+const chartData = {{ chart_data_json | safe }};
+new Chart(document.getElementById('patientTrendChart'), {
+    type: 'line',
+    data: chartData,
+    options: {
+        responsive: true,
+        scales: {
+            x: { type: 'time', time: { unit: 'day' }, title: { display: true, text: 'Date' } },
+            y: { beginAtZero: true, title: { display: true, text: 'Score' } }
+        },
+        plugins: { legend: { position: 'top' } }
+    }
+});
+</script>
+{% endif %}
 {% endblock %}

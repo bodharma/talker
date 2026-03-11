@@ -71,6 +71,7 @@ class Settings(BaseSettings):
     apple_client_id: str = ""
     apple_client_secret: str = ""
     base_url: str = "http://localhost:8000"  # for OAuth callback URLs
+    allowed_hosts: str = "*"  # comma-separated, e.g. "talker.example.com,localhost"
 
 
 @lru_cache

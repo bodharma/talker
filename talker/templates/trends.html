@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Talker — Symptom Trends{% endblock %}
+{% block content %}
+<h1>Symptom Trends</h1>
+<p style="color:var(--text-muted);margin-bottom:1.5rem;">Track your screening scores over time</p>
+
+{% if summary %}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem;margin-bottom:2rem;">
+    {% for inst_id, data in summary.items() %}
+    <div class="card">
+        <h3 style="margin:0 0 0.5rem 0;">{{ inst_id | upper }}</h3>
+        <div style="font-size:2rem;font-weight:700;">{{ data.latest_score }}</div>
+        <div style="color:var(--text-muted);font-size:0.9rem;">{{ data.latest_severity }}</div>
+        <div style="margin-top:0.5rem;font-size:0.85rem;">
+            {% if data.direction == 'improving' %}
+            <span style="color:#059669;">&#x2193; Improving</span>
+            {% elif data.direction == 'worsening' %}
+            <span style="color:#dc2626;">&#x2191; Worsening</span>
+            {% elif data.direction == 'stable' %}
+            <span style="color:var(--text-muted);">&#x2194; Stable</span>
+            {% else %}
+            <span style="color:var(--text-muted);">Baseline</span>
+            {% endif %}
+        </div>
+        <div style="color:var(--text-muted);font-size:0.8rem;margin-top:0.25rem;">{{ data.session_count }} session{{ 's' if data.session_count != 1 }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="card">
+    <h2>Score History</h2>
+    <canvas id="trendChart" style="width:100%;max-height:400px;"></canvas>
+</div>
+{% else %}
+<div class="card" style="text-align:center;color:var(--text-muted);padding:2rem;">
+    <p>No assessment data yet. Complete an assessment to see your trends.</p>
+    <a href="/assess" class="btn btn-primary" style="margin-top:1rem;">Start Assessment</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if summary %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<script>
+const chartData = {{ chart_data_json | safe }};
+new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: chartData,
+    options: {
+        responsive: true,
+        scales: {
+            x: {
+                type: 'time',
+                time: { unit: 'day' },
+                title: { display: true, text: 'Date' }
+            },
+            y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Score' }
+            }
+        },
+        plugins: {
+            legend: { position: 'top' }
+        }
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

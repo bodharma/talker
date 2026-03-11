@@ -1,0 +1,80 @@
+{% extends "clinician/base_clinician.html" %}
+{% block title %}Clinician — Schedules{% endblock %}
+{% block clinician_content %}
+<h1>Scheduled Assessments</h1>
+
+{% if request.query_params.get('message') %}
+<div style="padding:0.75rem;border-radius:6px;margin-bottom:1rem;background:#d4edda;">
+    {{ request.query_params.get('message') | replace('+', ' ') }}
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:1.5rem;">
+    <h2>Create Schedule</h2>
+    <form method="post" action="/clinician/schedule" style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:end;">
+        <div>
+            <label style="font-weight:600;display:block;margin-bottom:0.25rem;">Patient ID</label>
+            <input type="number" name="patient_id" required
+                   style="padding:0.5rem;border:1px solid var(--border);border-radius:6px;width:100px;">
+        </div>
+        <div>
+            <label style="font-weight:600;display:block;margin-bottom:0.25rem;">Instruments (comma-separated)</label>
+            <input type="text" name="instruments" required placeholder="phq-9, gad-7"
+                   style="padding:0.5rem;border:1px solid var(--border);border-radius:6px;width:250px;">
+        </div>
+        <div>
+            <label style="font-weight:600;display:block;margin-bottom:0.25rem;">Recurrence</label>
+            <select name="recurrence" style="padding:0.5rem;border:1px solid var(--border);border-radius:6px;">
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Every 2 weeks</option>
+                <option value="monthly">Monthly</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Create</button>
+    </form>
+</div>
+
+<h2>Active Schedules</h2>
+<div class="card" style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;">
+        <thead>
+            <tr style="border-bottom:2px solid var(--border);text-align:left;">
+                <th style="padding:0.5rem;">Patient</th>
+                <th style="padding:0.5rem;">Instruments</th>
+                <th style="padding:0.5rem;">Recurrence</th>
+                <th style="padding:0.5rem;">Next Due</th>
+                <th style="padding:0.5rem;">Last Completed</th>
+                <th style="padding:0.5rem;">Status</th>
+                <th style="padding:0.5rem;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in schedules %}
+            <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:0.5rem;">{{ s.patient_name }}<br><small style="color:var(--text-muted);">{{ s.patient_email }}</small></td>
+                <td style="padding:0.5rem;">{{ s.instruments | join(', ') | upper }}</td>
+                <td style="padding:0.5rem;">{{ s.recurrence }}</td>
+                <td style="padding:0.5rem;">{{ s.next_due.strftime('%Y-%m-%d') }}</td>
+                <td style="padding:0.5rem;">{{ s.last_completed.strftime('%Y-%m-%d') if s.last_completed else '—' }}</td>
+                <td style="padding:0.5rem;">
+                    {% if s.is_active %}
+                    <span style="color:var(--accent);">Active</span>
+                    {% else %}
+                    <span style="color:var(--text-muted);">Inactive</span>
+                    {% endif %}
+                </td>
+                <td style="padding:0.5rem;">
+                    {% if s.is_active %}
+                    <form method="post" action="/clinician/schedule/{{ s.id }}/deactivate" style="display:inline;">
+                        <button type="submit" class="btn btn-secondary" style="padding:0.25rem 0.5rem;font-size:0.85rem;">Stop</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" style="padding:1rem;text-align:center;color:var(--text-muted);">No schedules yet</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

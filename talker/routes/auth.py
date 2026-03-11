@@ -6,6 +6,8 @@ from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from talker.config import get_settings
 from talker.services.auth import AuthService
@@ -13,6 +15,7 @@ from talker.services.auth import AuthService
 templates = Jinja2Templates(directory="talker/templates")
 router = APIRouter(prefix="/auth")
 log = logging.getLogger(__name__)
+limiter = Limiter(key_func=get_remote_address)
 
 oauth = OAuth()
 
@@ -53,6 +56,7 @@ async def login_page(request: Request):
 
 
 @router.post("/login")
+@limiter.limit("5/minute")
 async def login(request: Request, email: str = Form(), password: str = Form()):
     session_factory = request.app.state.db_session_factory
     async with session_factory() as db:
@@ -93,6 +97,7 @@ async def signup_page(request: Request):
 
 
 @router.post("/signup")
+@limiter.limit("5/minute")
 async def signup(
     request: Request,
     name: str = Form(),

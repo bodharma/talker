@@ -11,6 +11,7 @@ router = APIRouter()
 @router.get("/")
 async def index(request: Request):
     assigned = None
+    due_assessments = []
     user_id = request.session.get("user_id")
     if user_id:
         session_factory = request.app.state.db_session_factory
@@ -31,8 +32,27 @@ async def index(request: Request):
             if invite and invite.instruments:
                 assigned = invite.instruments
 
+            # Check for due scheduled assessments
+            try:
+                from talker.services.schedule import ScheduleService
+
+                sched_svc = ScheduleService(db)
+                due = await sched_svc.get_due_assessments(user_id)
+                for d in due:
+                    due_assessments.append({
+                        "id": d.id,
+                        "instruments": d.instruments,
+                        "recurrence": d.recurrence,
+                    })
+            except Exception:
+                pass
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"recent_sessions": [], "assigned_instruments": assigned},
+        context={
+            "recent_sessions": [],
+            "assigned_instruments": assigned,
+            "due_assessments": due_assessments,
+        },
     )

@@ -134,6 +134,19 @@ class PatientLink(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class ScheduledAssessment(Base):
+    __tablename__ = "scheduled_assessments"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    clinician_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    patient_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    instruments: Mapped[list] = mapped_column(JSONB, default=list)
+    recurrence: Mapped[str] = mapped_column(String(20), default="weekly")
+    next_due: Mapped[datetime] = mapped_column(DateTime)
+    last_completed: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class Invite(Base):
     __tablename__ = "invites"
     id: Mapped[uuid_mod.UUID] = mapped_column(

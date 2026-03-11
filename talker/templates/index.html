@@ -4,6 +4,22 @@
 <h1>Welcome to Talker</h1>
 <p class="subtitle">Your psychology pre-assessment guide</p>
 
+{% if due_assessments %}
+{% for due in due_assessments %}
+<div class="card" style="border-left:3px solid var(--danger);margin-bottom:1rem;">
+    <strong>Scheduled assessment due:</strong>
+    {{ due.instruments | join(', ') | upper }} ({{ due.recurrence }})
+    <form method="post" action="/assess/start" style="margin-top:0.5rem;">
+        {% for inst in due.instruments %}
+        <input type="hidden" name="instruments" value="{{ inst }}">
+        {% endfor %}
+        <input type="hidden" name="schedule_id" value="{{ due.id }}">
+        <button type="submit" class="btn btn-primary">Start Now</button>
+    </form>
+</div>
+{% endfor %}
+{% endif %}
+
 {% if assigned_instruments %}
 <div class="card" style="border-left:3px solid var(--primary);margin-bottom:1.5rem;">
     <strong>Your clinician assigned an assessment:</strong>
