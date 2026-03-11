@@ -12,9 +12,19 @@
         <a href="/" class="logo">Talker</a>
         <div class="nav-links">
             <a href="/">Home</a>
+            {% if request.session.get('user_id') %}
             <a href="/history">History</a>
             <a href="/settings">Settings</a>
+            {% if request.session.get('user_role') == 'clinician' %}
+            <a href="/clinician/">Patients</a>
+            {% endif %}
+            {% if request.session.get('user_role') == 'admin' %}
             <a href="/admin/">Admin</a>
+            {% endif %}
+            <a href="/auth/logout">Logout</a>
+            {% else %}
+            <a href="/auth/login">Sign In</a>
+            {% endif %}
         </div>
     </nav>
     <main class="container">

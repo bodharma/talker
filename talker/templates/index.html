@@ -4,6 +4,19 @@
 <h1>Welcome to Talker</h1>
 <p class="subtitle">Your psychology pre-assessment guide</p>
 
+{% if assigned_instruments %}
+<div class="card" style="border-left:3px solid var(--primary);margin-bottom:1.5rem;">
+    <strong>Your clinician assigned an assessment:</strong>
+    {{ assigned_instruments | join(', ') | upper }}
+    <form method="post" action="/assess/start" style="margin-top:0.5rem;">
+        {% for inst in assigned_instruments %}
+        <input type="hidden" name="instruments" value="{{ inst }}">
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">Start Assigned Assessment</button>
+    </form>
+</div>
+{% endif %}
+
 <div class="card">
     <h2>Start a New Assessment</h2>
     <p style="margin-bottom: 1rem; color: var(--text-muted);">

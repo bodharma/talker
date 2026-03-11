@@ -8,6 +8,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from talker.config import get_settings
 from talker.routes.admin import router as admin_router
+from talker.routes.auth import router as auth_router, setup_oauth
+from talker.routes.clinician import router as clinician_router
 from talker.routes.assess import router as assess_router
 from talker.routes.history import router as history_router
 from talker.routes.main import router as main_router
@@ -24,6 +26,18 @@ async def lifespan(app: FastAPI):
     run_migrations()
     init_langfuse(settings)
     app.state.db_session_factory = create_session_factory(settings)
+
+    # Bootstrap admin user
+    if settings.admin_email:
+        from talker.services.auth import AuthService
+
+        async with app.state.db_session_factory() as db:
+            auth = AuthService(db)
+            await auth.ensure_admin(settings.admin_email, settings.admin_password)
+
+    # Setup OAuth
+    setup_oauth()
+
     yield
 
 
@@ -39,4 +53,6 @@ app.include_router(history_router)
 app.include_router(report_router)
 app.include_router(voice_router)
 app.include_router(settings_router)
+app.include_router(auth_router)
+app.include_router(clinician_router)
 app.include_router(admin_router)

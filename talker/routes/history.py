@@ -1,9 +1,10 @@
 import uuid
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from talker.routes.deps import verify_auth
 from talker.services.session_repo import SessionRepository
 
 templates = Jinja2Templates(directory="talker/templates")
@@ -11,11 +12,11 @@ router = APIRouter(prefix="/history")
 
 
 @router.get("")
-async def history_list(request: Request):
+async def history_list(request: Request, user_id: int = Depends(verify_auth)):
     session_factory = request.app.state.db_session_factory
     async with session_factory() as db:
         repo = SessionRepository(db)
-        sessions = await repo.list_completed()
+        sessions = await repo.list_completed(user_id=user_id)
 
     return templates.TemplateResponse(
         request=request,

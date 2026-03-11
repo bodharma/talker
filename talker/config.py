@@ -62,6 +62,16 @@ class Settings(BaseSettings):
     admin_username: str = "admin"
     admin_password: str = ""  # required for admin access
 
+    # Admin bootstrap (first-run only)
+    admin_email: str = ""
+
+    # OAuth
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    apple_client_id: str = ""
+    apple_client_secret: str = ""
+    base_url: str = "http://localhost:8000"  # for OAuth callback URLs
+
 
 @lru_cache
 def get_settings() -> Settings:

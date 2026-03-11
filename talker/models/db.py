@@ -14,8 +14,21 @@ class Base(AsyncAttrs, DeclarativeBase):
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
     name: Mapped[str] = mapped_column(String(255), default="default")
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    role: Mapped[str] = mapped_column(String(20), default="patient")
+    oauth_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    oauth_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email_verified: Mapped[bool] = mapped_column(default=False)
+    is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("role", "patient")
+        kwargs.setdefault("email_verified", False)
+        kwargs.setdefault("is_active", True)
+        super().__init__(**kwargs)
 
 
 class Session(Base):
@@ -31,6 +44,7 @@ class Session(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     admin_notes: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     screenings: Mapped[list["SessionScreening"]] = relationship(
         back_populates="session", order_by="SessionScreening.created_at"
     )
@@ -110,3 +124,26 @@ class VoiceFeature(Base):
     features: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     session: Mapped["Session"] = relationship(back_populates="voice_features")
+
+
+class PatientLink(Base):
+    __tablename__ = "patient_links"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    clinician_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    patient_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class Invite(Base):
+    __tablename__ = "invites"
+    id: Mapped[uuid_mod.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid_mod.uuid4
+    )
+    clinician_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    email: Mapped[str] = mapped_column(String(255))
+    token: Mapped[str] = mapped_column(String(100), unique=True)
+    instruments: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    schedule: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

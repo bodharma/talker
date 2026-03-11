@@ -3,11 +3,12 @@ import json
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from talker.config import get_settings
+from talker.routes.deps import verify_admin
 from talker.services.admin_repo import AdminRepository, SessionFilter
 
 templates = Jinja2Templates(directory="talker/templates")
@@ -15,57 +16,9 @@ router = APIRouter(prefix="/admin")
 log = logging.getLogger(__name__)
 
 
-async def verify_admin(request: Request):
-    """Dependency that checks admin session cookie."""
-    if not request.session.get("admin_authenticated"):
-        raise HTTPException(status_code=303, headers={"Location": "/admin/login"})
-    settings = get_settings()
-    if not settings.admin_password:
-        raise HTTPException(status_code=303, headers={"Location": "/admin/login"})
-
-
 @router.get("/login")
-async def admin_login_page(request: Request):
-    settings = get_settings()
-    if not settings.admin_password:
-        return templates.TemplateResponse(
-            request=request,
-            name="admin/login.html",
-            context={"error": "Admin access is disabled. Set ADMIN_PASSWORD in environment."},
-        )
-    return templates.TemplateResponse(
-        request=request,
-        name="admin/login.html",
-        context={"error": None},
-    )
-
-
-@router.post("/login")
-async def admin_login(
-    request: Request,
-    username: str = Form(),
-    password: str = Form(),
-):
-    settings = get_settings()
-    if (
-        settings.admin_password
-        and username == settings.admin_username
-        and password == settings.admin_password
-    ):
-        request.session["admin_authenticated"] = True
-        return RedirectResponse(url="/admin/", status_code=303)
-
-    return templates.TemplateResponse(
-        request=request,
-        name="admin/login.html",
-        context={"error": "Invalid credentials"},
-    )
-
-
-@router.get("/logout")
-async def admin_logout(request: Request):
-    request.session.clear()
-    return RedirectResponse(url="/admin/login", status_code=303)
+async def admin_login_redirect(request: Request):
+    return RedirectResponse(url="/auth/login", status_code=303)
 
 
 # --- Protected routes ---

@@ -1,0 +1,36 @@
+{% extends "clinician/base_clinician.html" %}
+{% block title %}Clinician — {{ patient.name }}{% endblock %}
+{% block clinician_content %}
+<h1>{{ patient.name }}</h1>
+<p style="color:var(--text-muted);">{{ patient.email }}</p>
+
+<h2>Sessions</h2>
+<div class="card" style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;">
+        <thead>
+            <tr style="border-bottom:2px solid var(--border);text-align:left;">
+                <th style="padding:0.5rem;">Date</th>
+                <th style="padding:0.5rem;">State</th>
+                <th style="padding:0.5rem;">Instruments</th>
+                <th style="padding:0.5rem;">Scores</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in sessions %}
+            <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:0.5rem;">{{ s.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td style="padding:0.5rem;">{{ s.state }}</td>
+                <td style="padding:0.5rem;">{{ s.screenings | map(attribute='instrument_id') | join(', ') | upper }}</td>
+                <td style="padding:0.5rem;">
+                    {% for sc in s.screenings %}
+                    {{ sc.instrument_id | upper }}: {{ sc.score }} ({{ sc.severity }}){% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" style="padding:1rem;text-align:center;color:var(--text-muted);">No sessions yet</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

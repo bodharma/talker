@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic_ai import Agent
@@ -10,6 +10,7 @@ from talker.config import get_settings
 from talker.services.llm import create_agent_model
 from talker.models.schemas import SessionState
 from talker.services.instruments import InstrumentLoader
+from talker.routes.deps import verify_auth
 from talker.services.session_repo import SessionRepository
 
 templates = Jinja2Templates(directory="talker/templates")
@@ -34,6 +35,7 @@ async def assess_begin(
     instruments: list[str] = Form(default=[]),
     full_checkup: str = Form(default=""),
     voice: str = Form(default=""),
+    user_id: int = Depends(verify_auth),
 ):
     orch = Orchestrator()
 
@@ -47,7 +49,7 @@ async def assess_begin(
     session_factory = request.app.state.db_session_factory
     async with session_factory() as db:
         repo = SessionRepository(db)
-        session_id = await repo.create(instrument_queue=instrument_queue)
+        session_id = await repo.create(instrument_queue=instrument_queue, user_id=user_id)
         await db.commit()
 
     if voice:

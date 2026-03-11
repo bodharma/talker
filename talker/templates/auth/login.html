@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Talker — Sign In{% endblock %}
+{% block content %}
+<div style="max-width:400px;margin:4rem auto;">
+    <h1>Sign In</h1>
+    {% if error %}
+    <div style="background:var(--danger);color:white;padding:0.75rem;border-radius:6px;margin-bottom:1rem;">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    {% if google_enabled %}
+    <a href="/auth/login/google" class="btn btn-secondary" style="width:100%;margin-bottom:0.5rem;text-align:center;">
+        Sign in with Google
+    </a>
+    {% endif %}
+    {% if apple_enabled %}
+    <a href="/auth/login/apple" class="btn btn-secondary" style="width:100%;margin-bottom:1rem;text-align:center;">
+        Sign in with Apple
+    </a>
+    {% endif %}
+
+    {% if google_enabled or apple_enabled %}
+    <div style="text-align:center;color:var(--text-muted);margin:1rem 0;">or</div>
+    {% endif %}
+
+    <form method="post" action="/auth/login">
+        <div style="margin-bottom:1rem;">
+            <label style="font-weight:600;display:block;margin-bottom:0.25rem;">Email</label>
+            <input type="email" name="email" required
+                   style="width:100%;padding:0.5rem;border:1px solid var(--border);border-radius:6px;">
+        </div>
+        <div style="margin-bottom:1.5rem;">
+            <label style="font-weight:600;display:block;margin-bottom:0.25rem;">Password</label>
+            <input type="password" name="password" required
+                   style="width:100%;padding:0.5rem;border:1px solid var(--border);border-radius:6px;">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Sign In</button>
+    </form>
+    <p style="text-align:center;margin-top:1rem;">
+        <a href="/auth/signup">Create an account</a>
+    </p>
+</div>
+{% endblock %}

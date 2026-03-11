@@ -48,12 +48,14 @@ class SessionRepository:
         self,
         instrument_queue: list[str],
         mode: str = "web",
+        user_id: int | None = None,
     ) -> uuid_mod.UUID:
         session = Session(
             state=SessionState.SCREENING,
             mode=mode,
             instrument_queue=instrument_queue,
             current_instrument_index=0,
+            user_id=user_id,
         )
         self.db.add(session)
         await self.db.flush()
@@ -194,7 +196,7 @@ class SessionRepository:
         self.db.add(event)
         await self.db.flush()
 
-    async def list_completed(self) -> list[SessionListItem]:
+    async def list_completed(self, user_id: int | None = None) -> list[SessionListItem]:
         stmt = (
             select(Session)
             .options(selectinload(Session.screenings))
@@ -205,6 +207,8 @@ class SessionRepository:
             )
             .order_by(Session.created_at.desc())
         )
+        if user_id is not None:
+            stmt = stmt.where(Session.user_id == user_id)
         result = await self.db.execute(stmt)
         sessions = result.scalars().all()
 

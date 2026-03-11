@@ -1,0 +1,29 @@
+{% extends "clinician/base_clinician.html" %}
+{% block title %}Clinician — Patients{% endblock %}
+{% block clinician_content %}
+<h1>My Patients</h1>
+<div class="card" style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;">
+        <thead>
+            <tr style="border-bottom:2px solid var(--border);text-align:left;">
+                <th style="padding:0.5rem;">Name</th>
+                <th style="padding:0.5rem;">Email</th>
+                <th style="padding:0.5rem;">Sessions</th>
+                <th style="padding:0.5rem;">Linked</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in patients %}
+            <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:0.5rem;"><a href="/clinician/patients/{{ p.id }}">{{ p.name }}</a></td>
+                <td style="padding:0.5rem;">{{ p.email }}</td>
+                <td style="padding:0.5rem;">{{ p.session_count }}</td>
+                <td style="padding:0.5rem;">{{ p.linked_at.strftime('%Y-%m-%d') }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" style="padding:1rem;text-align:center;color:var(--text-muted);">No patients yet. Send an invite to get started.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
