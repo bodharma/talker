@@ -1,13 +1,16 @@
 # Talker — Architecture Document
 
 **Last updated:** 2026-03-11
-**Status:** All phases (1-4) complete
+**Status:** All phases (1-4) complete + LiveKit voice personas + Langfuse observability
 
 ## What Is Talker?
 
-A psychology pre-assessment voice assistant. Users take validated DSM-5 screening questionnaires via voice or text, followed by a conversational follow-up, to understand their symptoms and know where to seek professional help.
+A voice-first AI agent platform for structured conversations with real-world purpose. Two personas run on the same engine:
 
-**It is NOT a medical tool.** It is a guide.
+- **Psychology Assessor** — validated DSM-5 screening questionnaires via voice or text, LLM follow-up, crisis detection, clinical reports
+- **Shard Receptionist** — voice-based building receptionist with tenant lookup, visitor tracking, weather API, and mood-aware responses
+
+The architecture is persona-driven: swap the prompt and tools, keep everything else.
 
 ---
 
@@ -23,11 +26,10 @@ graph TB
 
     subgraph "Persona Layer"
         direction TB
-        PREG["Persona Registry<br/>livekit_agent.py / orchestrator.py"]
+        PREG["Persona Registry<br/>livekit_agent.py"]
         subgraph "Personas"
             ASSESS["Psychology Assessor<br/>agents/ + instruments/"]
             RECEP["Shard Receptionist<br/>personas/receptionist.py"]
-            FUTURE["Future Personas<br/>personas/?.py"]
         end
     end
 
@@ -39,26 +41,17 @@ graph TB
         MAPPER["Voice Answer Mapper"]
     end
 
-    subgraph "Tool Registries"
-        ATOOLS["Assessor Tools<br/>triage, scoring, safety"]
-        RTOOLS["Receptionist Tools<br/>directory, weather,<br/>building info, visitor log,<br/>recognize + register visitor"]
-    end
-
     subgraph "Services Layer"
         LLM["LLM Service<br/>OpenRouter / Ollama"]
-        TRACE["Tracing + Prompts<br/>Langfuse"]
-        INSTR["Instrument Loader<br/>YAML-driven"]
-        DB["Database<br/>PostgreSQL + SQLAlchemy"]
-        VPROV["Voice Provider<br/>Local / Cloud / LiveKit"]
-        VFEAT["Voice Features<br/>Parselmouth"]
-        RAG["RAG Service<br/>pgvector + Embeddings"]
-        SMEM["Session Memory<br/>Cross-session context"]
+        TRACE["Langfuse<br/>Tracing + Prompts<br/>+ Costs + Scores"]
+        DB["PostgreSQL<br/>+ pgvector"]
+        RAG["RAG Service<br/>Embeddings + Search"]
     end
 
     subgraph "Admin Panel"
         ADMIN["Admin Routes<br/>/admin/*"]
-        AREPO["Admin Repository<br/>Stats, Safety, Audit"]
-        EXPORT["Export Service<br/>JSON + CSV"]
+        STATS["Stats + Langfuse<br/>Cost Dashboard"]
+        LKADMIN["LiveKit Room<br/>Management"]
     end
 
     WEB --> ORCH
@@ -67,42 +60,126 @@ graph TB
     PREG --> ASSESS
     PREG --> RECEP
     ASSESS --> ORCH
-    ASSESS --> ATOOLS
-    RECEP --> RTOOLS
-    ORCH --> SCREEN
-    ORCH --> CONV
-    ORCH --> SAFETY
-    SCREEN --> INSTR
     CONV --> LLM
     CONV --> RAG
-    CONV --> SMEM
     LLM --> TRACE
     ORCH --> DB
-    WS --> VPROV
-    WS --> VFEAT
-    WS --> MAPPER
-    MAPPER --> LLM
-    ADMIN --> AREPO
-    ADMIN --> EXPORT
-    AREPO --> DB
+    ADMIN --> STATS
+    ADMIN --> LKADMIN
 ```
-
-**Why this architecture?**
-The hybrid screening model (rigid questionnaires + open conversation) maps naturally to specialized agents. The Orchestrator decides when to use structured screeners vs free-form dialogue. Adding a new screening instrument = adding a YAML file, not writing code. Adding a new persona = adding a tool file + registering the agent class.
 
 ---
 
-## Persona System — How Different Agents Share One Platform
+## Environment Variables — Complete Reference
 
-> **For AI tools:** This section explains the persona abstraction. When adding new personas, follow this pattern exactly.
+Every variable the system reads, grouped by subsystem. All are optional unless marked **required**.
 
-The platform supports multiple personas — different conversational agents with different tools, instructions, and purposes — running on the same engine. Each persona is a configuration, not a codebase.
+### Core App
+
+| Variable | Default | What it does | When it matters |
+|---|---|---|---|
+| `DATABASE_URL` | `postgresql+asyncpg://talker:talker@localhost:5432/talker` | PostgreSQL connection string | Always — sessions, users, visitor tracking, RAG all need it. Without it, only LiveKit agent mode works (stateless) |
+| `APP_SECRET_KEY` | `change-me-in-production` | Signs session cookies | Always — used by Starlette SessionMiddleware |
+| `BASE_URL` | `http://localhost:8000` | Public URL for OAuth callback URLs | When using Google/Apple OAuth |
+| `ALLOWED_HOSTS` | `*` | Comma-separated hostnames for TrustedHostMiddleware | Production — prevents host header attacks |
+| `DEBUG` | `false` | Enables debug mode | Development only |
+
+### LLM — OpenRouter (primary)
+
+| Variable | Default | What it does | When it matters |
+|---|---|---|---|
+| `OPENROUTER_API_KEY` | _(empty)_ | OpenRouter API key | **Required** for text-based assessment. Not needed for LiveKit-only mode (LiveKit uses its own LLM) |
+| `OPENROUTER_MODEL_CONVERSATION` | `anthropic/claude-sonnet-4` | Model for follow-up conversations | When running text assessments — uses a capable model for nuanced dialogue |
+| `OPENROUTER_MODEL_SCREENER` | `anthropic/claude-haiku-4.5` | Model for triage and voice answer mapping | When triaging symptoms — uses a fast/cheap model for classification tasks |
+| `LLM_PROVIDER` | `openrouter` | `openrouter` or `ollama` | Controls which LLM backend the text-based agents use |
+
+### LLM — Ollama (local fallback)
+
+| Variable | Default | What it does | When it matters |
+|---|---|---|---|
+| `OLLAMA_CHAT_MODEL` | `llama3.2` | Local model name | When `LLM_PROVIDER=ollama` — runs entirely offline |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL | When using Ollama |
+
+### LiveKit (real-time voice)
+
+| Variable | Default | What it does | When it matters |
+|---|---|---|---|
+| `LIVEKIT_URL` | _(empty)_ | WebSocket URL (`wss://...livekit.cloud`) | **Required** for voice personas. Get from LiveKit Cloud dashboard |
+| `LIVEKIT_API_KEY` | _(empty)_ | LiveKit API key | **Required** for voice personas |
+| `LIVEKIT_API_SECRET` | _(empty)_ | LiveKit API secret | **Required** for voice personas |
+| `LIVEKIT_STT_MODEL` | `deepgram/nova-3:multi` | Speech-to-text model in LiveKit pipeline | Configures which STT the agent uses. Free tier includes Deepgram |
+| `LIVEKIT_LLM_MODEL` | `openai/gpt-4.1-mini` | LLM model in LiveKit pipeline | Configures which LLM reasons about tool calls. Separate from OpenRouter |
+| `LIVEKIT_TTS_MODEL` | `cartesia/sonic-3:...` | Text-to-speech model in LiveKit pipeline | Configures the voice. Includes voice ID in the model string |
+| `CARTESIA_API_KEY` | _(empty)_ | Cartesia TTS API key | Only if using Cartesia outside LiveKit free tier |
+
+### Langfuse (observability + prompt management)
+
+| Variable | Default | What it does | When it matters |
+|---|---|---|---|
+| `LANGFUSE_SECRET_KEY` | _(empty)_ | Langfuse secret key | Enables: LLM tracing, prompt management, cost tracking, user feedback scores. Without it, everything falls back gracefully |
+| `LANGFUSE_PUBLIC_KEY` | _(empty)_ | Langfuse public key | Required with secret key |
+| `LANGFUSE_HOST` | `https://cloud.langfuse.com` | Langfuse server URL | Change for self-hosted Langfuse |
+
+**What Langfuse enables when configured:**
+- **Tracing** — every LLM call logged with user_id, session_id, agent name
+- **Prompt management** — persona instructions fetched from Langfuse (`talker-receptionist`, `talker-assessor`), editable without redeploy, falls back to hardcoded if unavailable
+- **Cost tracking** — admin dashboard shows 30-day cost trend, per-model usage breakdown
+- **User feedback** — star ratings from end-of-session UI attached as scores to traces
+
+### Voice — WebSocket mode (not LiveKit)
+
+| Variable | Default | What it does | When it matters |
+|---|---|---|---|
+| `VOICE_PROVIDER` | `local` | `local` or `cloud` | Controls STT/TTS for WebSocket voice mode |
+| `VOICE_LOCAL_STT_MODEL` | `base` | Whisper model size | When `VOICE_PROVIDER=local` |
+| `VOICE_LOCAL_TTS_MODEL` | `en_US-amy-medium` | Piper TTS voice | When `VOICE_PROVIDER=local` |
+| `VOICE_LOCAL_MODELS_DIR` | `models/voice` | Where Piper models are stored | When `VOICE_PROVIDER=local` |
+| `DEEPGRAM_API_KEY` | _(empty)_ | Deepgram STT key | When `VOICE_PROVIDER=cloud` |
+| `DEEPGRAM_MODEL` | `nova-2` | Deepgram model | When `VOICE_PROVIDER=cloud` |
+| `ELEVENLABS_API_KEY` | _(empty)_ | ElevenLabs TTS key | When `VOICE_PROVIDER=cloud` |
+| `ELEVENLABS_MODEL` | `eleven_multilingual_v2` | ElevenLabs model | When `VOICE_PROVIDER=cloud` |
+| `ELEVENLABS_VOICE_ID` | _(empty)_ | ElevenLabs voice | When `VOICE_PROVIDER=cloud` |
+
+### RAG / Embeddings
+
+| Variable | Default | What it does | When it matters |
+|---|---|---|---|
+| `EMBEDDING_PROVIDER` | `openai` | `openai` or `ollama` | Controls embedding model for RAG |
+| `OPENAI_API_KEY` | _(empty)_ | OpenAI API key (embeddings only) | When `EMBEDDING_PROVIDER=openai` — used for text-embedding-3-small, not for chat |
+| `EMBEDDING_MODEL` | `text-embedding-3-small` | OpenAI embedding model | When `EMBEDDING_PROVIDER=openai` |
+| `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Ollama embedding model | When `EMBEDDING_PROVIDER=ollama` |
+| `RAG_CHUNK_SIZE` | `512` | Characters per knowledge chunk | Affects retrieval granularity |
+| `RAG_CHUNK_OVERLAP` | `64` | Overlap between chunks | Prevents context loss at boundaries |
+| `RAG_TOP_K` | `5` | Number of chunks retrieved | More = more context but higher token cost |
+
+### Auth
+
+| Variable | Default | What it does | When it matters |
+|---|---|---|---|
+| `ADMIN_EMAIL` | _(empty)_ | Bootstrap admin user on first startup | First run only — creates admin account |
+| `ADMIN_PASSWORD` | _(empty)_ | Admin password | For admin login |
+| `GOOGLE_CLIENT_ID` | _(empty)_ | Google OAuth client ID | When enabling Google sign-in |
+| `GOOGLE_CLIENT_SECRET` | _(empty)_ | Google OAuth secret | When enabling Google sign-in |
+| `APPLE_CLIENT_ID` | _(empty)_ | Apple OAuth client ID | When enabling Apple sign-in |
+| `APPLE_CLIENT_SECRET` | _(empty)_ | Apple OAuth secret | When enabling Apple sign-in |
+
+### External APIs
+
+| Variable | Default | What it does | When it matters |
+|---|---|---|---|
+| `OPENWEATHERMAP_API_KEY` | _(empty)_ | Real London weather data | Receptionist persona — falls back to mock weather if not set |
+
+---
+
+## Persona System
+
+The platform supports multiple personas running on the same engine. Each persona is: **tools + system prompt + capabilities**.
 
 ```mermaid
 graph TB
     subgraph "What a Persona IS"
         direction LR
-        INST["Instructions<br/>(system prompt via Langfuse)"]
+        INST["Instructions<br/>(Langfuse with fallback)"]
         TOOLS_P["Tool Registry<br/>(@function_tool functions)"]
         CLASS["Agent Class<br/>extends livekit Agent"]
     end
@@ -111,106 +188,157 @@ graph TB
         direction LR
         ENGINE["Voice Pipeline<br/>STT → LLM → TTS"]
         CONFIG_S["Config System<br/>pydantic-settings"]
-        TRACE_S["Observability<br/>Langfuse tracing"]
-        AUTH_S["Auth + Roles<br/>if using web UI"]
-    end
-
-    subgraph "Current Personas"
-        direction TB
-        PA["🧠 Psychology Assessor<br/>━━━━━━━━━━━━━━━<br/>Tools: triage, screening,<br/>scoring, safety, RAG<br/>Transport: WebSocket + Web UI<br/>Data: YAML instruments,<br/>knowledge base, PostgreSQL"]
-
-        PR["🏢 Shard Receptionist<br/>━━━━━━━━━━━━━━━<br/>Tools: directory lookup,<br/>availability, building info,<br/>weather, visitor log,<br/>recognize visitor, register visitor<br/>Transport: LiveKit rooms<br/>Data: in-memory dicts + PostgreSQL<br/>(visitor tracking)"]
+        TRACE_S["Langfuse<br/>Tracing + Prompts + Scores"]
+        AUTH_S["Auth + Roles<br/>gated by persona"]
     end
 ```
 
-### Persona comparison — same pattern, different purpose
+### Current personas
 
-```mermaid
-graph LR
-    subgraph "Psychology Assessor"
-        direction TB
-        A_GREET["Greet + disclaimers"]
-        A_TRIAGE["Triage: which instruments?"]
-        A_SCREEN["Administer screening"]
-        A_CONV["Follow-up conversation"]
-        A_SUMMARY["Summary + recommendations"]
-        A_GREET --> A_TRIAGE --> A_SCREEN --> A_CONV --> A_SUMMARY
-    end
-
-    subgraph "Shard Receptionist"
-        direction TB
-        R_GREET["Greet visitor"]
-        R_WHO["Who are you here to see?"]
-        R_LOOKUP["Look up in directory"]
-        R_AVAIL["Check availability"]
-        R_DIRECT["Give directions + log"]
-        R_GREET --> R_WHO --> R_LOOKUP --> R_AVAIL --> R_DIRECT
-    end
-```
-
-Both follow the same pattern: **greet → understand need → use tools → respond naturally → close.**
+| Persona | Slug | Auth required | Tools | Capabilities | Transport |
+|---|---|---|---|---|---|
+| Shard Receptionist | `receptionist` | No | 7 (directory, weather, visitor tracking) | Voice analysis | LiveKit |
+| Receptionist (basic) | `receptionist-basic` | No | 7 | None | LiveKit |
+| Psychology Assessor | `assessor` | Yes | 9 (screening, triage, safety) | Voice analysis | LiveKit + WebSocket + Web |
+| Assessor (basic) | `assessor-basic` | Yes | 9 | None | LiveKit |
 
 ### Adding a new persona
 
-```mermaid
-flowchart LR
-    A["1. Create<br/>personas/name.py"] --> B["2. Define tools<br/>@function_tool()"]
-    B --> C["3. Write instructions<br/>or fetch from Langfuse"]
-    C --> D["4. Create Agent class<br/>tools + instructions"]
-    D --> E["5. Register in<br/>PERSONAS dict"]
-    E --> F["6. Add tests"]
-```
+1. Create `talker/personas/your_persona.py` with `@function_tool` functions
+2. Write instructions string (or create in Langfuse as `talker-your-persona`)
+3. Create `YourAgent(Agent)` with tools + instructions
+4. Register in `PERSONAS` dict in `livekit_agent.py`
+5. Write tests
 
-No schema changes. No route changes. No database migrations. Just a Python file with tools and a prompt.
-
-### Capabilities — pluggable pipeline modules
-
-> **For AI tools:** Capabilities and tools are different things. Tools are called by the LLM on demand. Capabilities run automatically on every audio turn and inject context into the LLM before it responds.
-
-Capabilities are processing modules that hook into the voice pipeline. They analyze audio, enrich context, and optionally expose tools. Any persona can opt into any capability.
-
-```mermaid
-graph TB
-    subgraph "Pipeline Flow"
-        direction LR
-        AUDIO["Audio turn"] --> CAP["Capabilities<br/>(automatic)"]
-        CAP --> CONTEXT["Enriched context"]
-        CONTEXT --> LLM["LLM"]
-        LLM --> TOOLS["Tools<br/>(on demand)"]
-        TOOLS --> RESPONSE["Response"]
-    end
-
-    subgraph "Current Capabilities"
-        VA["🎙 VoiceAnalysisCapability<br/>━━━━━━━━━━━━━━━<br/>Wraps voice_features.py<br/>Extracts: pitch, jitter, shimmer, HNR<br/>Infers: mood (6 rules)<br/>Exposes: get_voice_analysis, get_voice_trend<br/>Injects: mood context per turn"]
-    end
-
-    subgraph "Capability ABC"
-        BASE["BaseCapability<br/>━━━━━━━━━━━━━━━<br/>process_audio(audio, sr, transcript)<br/>get_context_prompt(results)<br/>get_tools()"]
-    end
-
-    VA --> BASE
-```
-
-**Adding a capability to a persona:**
-
-```python
-PERSONAS = {
-    "receptionist": {
-        "agent_class": ReceptionistAgent,
-        "capabilities": [VoiceAnalysisCapability],  # plug in
-    },
-    "receptionist-basic": {
-        "agent_class": ReceptionistAgent,
-        "capabilities": [],  # opt out
-    },
-}
-```
-
-See [`docs/livekit-architecture.md`](livekit-architecture.md) for the detailed capability architecture with mood inference rules and audio processing pipeline.
+No schema changes, no route changes, no migrations.
 
 ---
 
-## Session State Machine
+## Langfuse Integration — Tracing, Prompts, Costs, Feedback
+
+```mermaid
+graph TB
+    subgraph "Runtime"
+        PERSONA["Persona init"] -->|get_prompt| LF_PROMPT["Langfuse Prompts<br/>talker-receptionist<br/>talker-assessor"]
+        LF_PROMPT -->|fallback| HARDCODED["Hardcoded instructions"]
+        SESSION["Agent session"] -->|create_trace| LF_TRACE["Langfuse Trace<br/>user_id, session_id,<br/>agent_name"]
+    end
+
+    subgraph "End of Session"
+        UI["Star rating widget"] -->|POST /api/feedback| SCORE["Langfuse Score<br/>user-feedback (0-1)<br/>linked to trace"]
+    end
+
+    subgraph "Admin Dashboard"
+        ADMIN_STATS["/admin/stats"] -->|API call| LF_API["Langfuse API<br/>/api/public/metrics/daily"]
+        LF_API --> COST["Cost trend chart<br/>Model usage table<br/>Trace + observation counts"]
+    end
+```
+
+**Prompt management flow:**
+1. On agent init, `get_prompt("talker-receptionist", RECEPTIONIST_INSTRUCTIONS)` is called
+2. If Langfuse is configured and the prompt exists → fetches production version
+3. If Langfuse is down or prompt doesn't exist → uses hardcoded fallback
+4. Edit prompts in Langfuse UI without redeploying
+
+**Seeding prompts:**
+```bash
+python -m scripts.seed_langfuse_prompts
+```
+Creates `talker-receptionist` and `talker-assessor` with production labels. Skips if they already exist.
+
+---
+
+## LiveKit Voice Session — End to End
+
+```mermaid
+sequenceDiagram
+    participant U as Browser
+    participant APP as FastAPI App
+    participant LK as LiveKit Cloud
+    participant AGT as Agent Process
+    participant LF as Langfuse
+
+    U->>APP: POST /api/livekit/token {persona: "receptionist"}
+    APP->>LK: create_room("talker-receptionist-abc123")
+    APP->>LK: create_dispatch(room, agent_name="talker")
+    APP->>LF: create_trace(session_id, user_id, agent_name)
+    APP-->>U: {token, room, trace_id}
+
+    U->>LK: connect(token)
+    LK->>AGT: dispatch agent to room
+    AGT->>AGT: _persona_from_room() → "receptionist"
+    AGT->>AGT: _build_agent() + wire capabilities
+    AGT->>U: greeting (audio + transcription stream)
+
+    loop Conversation
+        U->>LK: audio (WebRTC)
+        LK->>AGT: STT transcript
+        AGT->>AGT: tool calls (lookup, weather, etc.)
+        AGT->>U: TTS audio + lk.transcription stream
+    end
+
+    U->>U: disconnect / "End session" button
+    U->>U: show feedback widget (1-5 stars)
+    U->>APP: POST /api/feedback {trace_id, rating, comment}
+    APP->>LF: create_score(trace_id, value, comment)
+```
+
+---
+
+## Docker Deployment
+
+Three-service setup via `docker-compose.yml`:
+
+```mermaid
+graph LR
+    subgraph "Docker Compose"
+        APP["app<br/>FastAPI + Uvicorn<br/>port 8090:8000"]
+        AGENT["agent<br/>LiveKit agent process<br/>python -m talker.livekit_agent start"]
+        PG["postgres<br/>pgvector/pgvector:pg16<br/>port 5432"]
+    end
+
+    APP --> PG
+    AGENT --> PG
+    APP -->|creates rooms + dispatches| LK["LiveKit Cloud"]
+    AGENT -->|connects to rooms| LK
+```
+
+**Key Dockerfile features:**
+- UV package manager for fast dependency installation
+- `platform: linux/amd64` for prebuilt wheels (no compile step)
+- `--proxy-headers --forwarded-allow-ips *` for correct HTTPS behind reverse proxy
+- Agent download-files step bakes ONNX turn detection model into image
+
+**Shared env via YAML anchors:** Both `app` and `agent` services share the same env block (`x-shared-env: &shared-env`), keeping all config DRY.
+
+---
+
+## Admin Dashboard
+
+```mermaid
+graph LR
+    subgraph "Admin Pages"
+        SESSIONS["/admin/<br/>Session list + filters"]
+        DETAIL["/admin/sessions/{id}<br/>Full transcript + notes"]
+        SAFETY["/admin/safety<br/>Safety events log"]
+        STATS["/admin/stats<br/>System stats +<br/>Langfuse cost dashboard"]
+        KNOWLEDGE["/admin/knowledge<br/>RAG docs + re-ingest"]
+        LIVEKIT["/admin/livekit<br/>Active rooms + close"]
+    end
+
+    STATS -->|link| LANGFUSE["Open Langfuse ↗"]
+    LIVEKIT -->|link| LKCLOUD["Open LiveKit Cloud ↗"]
+```
+
+**Stats page includes:**
+- Session counts, completion rate, safety events
+- Sessions by state chart
+- Average scores by instrument
+- Langfuse metrics (when configured): total cost, traces, observations, daily cost trend, per-model usage
+
+---
+
+## Session State Machine (Psychology Assessor)
 
 ```mermaid
 stateDiagram-v2
@@ -219,350 +347,15 @@ stateDiagram-v2
     INTAKE --> SCREENING: select_instruments()
     SCREENING --> SCREENING: next instrument
     SCREENING --> FOLLOW_UP: all instruments done
-    FOLLOW_UP --> SUMMARY: skip or finish conversation
-    SUMMARY --> COMPLETED: generate report
+    FOLLOW_UP --> SUMMARY: finish conversation
+    SUMMARY --> COMPLETED: generate report + feedback
 
     INTAKE --> INTERRUPTED_BY_SAFETY: crisis detected
     SCREENING --> INTERRUPTED_BY_SAFETY: crisis detected
     FOLLOW_UP --> INTERRUPTED_BY_SAFETY: crisis detected
-    INTERRUPTED_BY_SAFETY --> COMPLETED: after resources provided
-
-    INTAKE --> ABANDONED: timeout/disconnect
-    SCREENING --> ABANDONED: timeout/disconnect
-    FOLLOW_UP --> ABANDONED: timeout/disconnect
 ```
 
-**Why a state machine?**
-Assessment flow is linear and auditable. Each state has clear entry/exit conditions. Sessions can be persisted mid-flow and resumed. The state is the single source of truth for "where are we."
-
----
-
-## Agent Layer — How They Work Together
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant O as Orchestrator
-    participant SM as Safety Monitor
-    participant S as Screener Agent
-    participant C as Conversation Agent
-    participant LLM as LLM (OpenRouter)
-
-    U->>O: Start assessment
-    O->>U: Greeting + disclaimers
-    U->>O: "I've been anxious and can't sleep"
-    O->>SM: check("I've been anxious...")
-    SM-->>O: null (safe)
-    O->>LLM: Triage — which instruments?
-    LLM-->>O: ["phq-9", "gad-7"]
-    O->>S: start_instrument("phq-9")
-
-    loop Each question
-        S->>U: "Over the last 2 weeks..."
-        U->>S: answer (0-3)
-        S->>SM: check(user text)
-    end
-
-    S-->>O: ScreeningResult{score, severity}
-    O->>S: start_instrument("gad-7")
-    Note over S,U: Repeat for GAD-7
-
-    O->>C: build_system_prompt(results)
-    C->>LLM: Explore flagged areas
-    LLM-->>C: Follow-up question
-    C->>U: "Can you tell me more about..."
-
-    loop Conversation turns
-        U->>C: response
-        C->>SM: check(response)
-        C->>LLM: Continue conversation
-        LLM-->>C: Response
-        C->>U: Next question
-    end
-
-    O->>U: Summary + recommendations
-```
-
-**Why separate agents instead of one monolith?**
-- **Screener** asks questions *exactly as validated* — no LLM rephrasing allowed (clinical validity)
-- **Conversation** is LLM-powered and exploratory — completely different behavior
-- **Safety Monitor** watches everything in parallel — can interrupt any agent at any point
-- Each agent is independently testable
-
----
-
-## Data Flow — Screening Instruments
-
-```mermaid
-flowchart LR
-    YAML["YAML Definition<br/>phq-9.yaml"] --> LOADER["InstrumentLoader<br/>load() / load_all()"]
-    LOADER --> DEF["InstrumentDefinition<br/>questions, options, scoring"]
-    DEF --> SCREENER["ScreenerAgent<br/>question-by-question"]
-    SCREENER --> ANSWERS["Raw Answers<br/>{q1: 2, q2: 1, ...}"]
-    ANSWERS --> SCORE["score() method<br/>sum / custom"]
-    SCORE --> RESULT["ScreeningResult<br/>score, severity, flags"]
-    RESULT --> ORCH["Orchestrator<br/>completed_results[]"]
-```
-
-**Why YAML-driven instruments?**
-- Adding PHQ-9, GAD-7, PCL-5, ASRS required zero Python code per instrument
-- Each YAML defines: questions, response options, scoring method, severity thresholds, flag rules
-- Supports multiple scoring methods (`sum`, `asrs_screener` with per-item thresholds)
-- Clinicians can review/edit instruments without touching code
-
----
-
-## Project Structure
-
-```mermaid
-graph LR
-    subgraph "talker/ (Python package)"
-        direction TB
-        MAIN["main.py<br/>FastAPI app, lifespan"]
-        LKAGENT["livekit_agent.py<br/>LiveKit entrypoint"]
-        CONFIG["config.py<br/>pydantic-settings"]
-
-        subgraph personas/
-            REC_P["receptionist.py<br/>Shard receptionist tools + agent"]
-            ASSESS_P["assessor.py<br/>Psychology assessor tools + agent"]
-        end
-
-        subgraph agents/
-            ORCH_F["orchestrator.py"]
-            SCREEN_F["screener.py"]
-            CONV_F["conversation.py"]
-            SAFETY_F["safety.py"]
-            TOOLS_F["tools.py"]
-            VMAP_F["voice_mapper.py"]
-            RAGT_F["rag_tools.py"]
-        end
-
-        subgraph services/
-            LLM_F["llm.py<br/>OpenRouter + Ollama"]
-            TRACE_F["tracing.py"]
-            INSTR_F["instruments.py"]
-            DB_F["database.py"]
-            REPO_F["session_repo.py"]
-            VREP_F["visitor_repo.py"]
-            VOICE_F["voice.py"]
-            VFEAT_F["voice_features.py"]
-            EMB_F["embeddings.py"]
-            RAG_F["rag.py"]
-            ING_F["ingest.py"]
-            SMEM_F["session_memory.py"]
-            AREP_F["admin_repo.py"]
-            EXP_F["export.py"]
-        end
-
-        subgraph models/
-            SCHEMA_F["schemas.py<br/>Pydantic models"]
-            ORM_F["db.py<br/>SQLAlchemy ORM"]
-            KNOW_F["knowledge.py<br/>pgvector models"]
-        end
-
-        subgraph routes/
-            MAIN_R["main.py → /"]
-            ASSESS_R["assess.py → /assess/*"]
-            VOICE_R["voice.py → /assess/voice, /ws/voice"]
-            HIST_R["history.py → /history/*"]
-            SET_R["settings.py → /settings"]
-            REPORT_R["report.py → /report/*"]
-            ADMIN_R["admin.py → /admin/*"]
-            LK_R["livekit.py → /livekit/*, /api/livekit/*"]
-        end
-
-        subgraph "templates/ + static/"
-            TPL["Jinja2 templates<br/>base, index, assess_*,<br/>history, settings, report"]
-            ATPL["admin/ templates<br/>login, sessions, detail,<br/>safety, stats, knowledge"]
-            CSS["style.css<br/>calming design"]
-            JS["voice.js + audio-processor.js<br/>WebSocket voice client"]
-        end
-
-        subgraph knowledge/
-            CLIN["clinical/<br/>depression, anxiety,<br/>ptsd, adhd, comorbidity"]
-            PSYCH["psychoeducation/<br/>instrument guides,<br/>treatment approaches"]
-            RES["resources/<br/>crisis, finding therapist"]
-        end
-
-        subgraph instruments/
-            PHQ["phq-9.yaml"]
-            GAD["gad-7.yaml"]
-            PCL["pcl-5.yaml"]
-            ASRS["asrs.yaml"]
-        end
-    end
-```
-
----
-
-## Technology Choices — Why Each One
-
-| Technology | Role | Why chosen |
-|---|---|---|
-| **FastAPI** | Web framework | Async-native, Pydantic-first, great for both REST APIs and SSR with Jinja2 |
-| **Jinja2 (SSR)** | Templating | Server-side rendered = simple, no JS framework complexity. Works offline. Mental health tool should feel calm, not "app-like" |
-| **PydanticAI** | Agent framework | Type-safe agents with `deps_type`/`output_type`, built-in tool calling, works with any OpenAI-compatible provider |
-| **OpenRouter** | LLM provider (cloud) | Access to Claude, GPT, Llama etc via single API. Easy model switching for conversation vs screener (different cost/quality tradeoffs) |
-| **Ollama** | LLM provider (local) | Local LLM fallback when no API key configured. Uses OpenAI-compatible endpoint |
-| **Langfuse** | LLM tracing | Trace every LLM call for quality auditing. Critical for a health-adjacent tool — need to verify conversation quality |
-| **PostgreSQL + pgvector** | Storage + embeddings | JSONB for flexible schema. pgvector for RAG semantic search with cosine distance |
-| **Chart.js** | Admin visualizations | Lightweight charting (CDN) for voice features and stats dashboards |
-| **SQLAlchemy 2.0 async** | ORM | Async support, mapped columns, works well with FastAPI's async lifecycle |
-| **pydantic-settings** | Configuration | Type-safe `.env` loading, validation, defaults. No stringly-typed config |
-| **YAML instruments** | Screening definitions | Human-readable, clinician-editable, data-driven. No code per instrument |
-| **faster-whisper** | Local STT | Fast CPU inference (int8), lazy-loaded, multiple model sizes |
-| **Piper TTS** | Local TTS | Lightweight neural TTS, streaming PCM output, multiple voices |
-| **Deepgram** | Cloud STT | High-accuracy speech recognition, Nova-2 model |
-| **ElevenLabs** | Cloud TTS | Natural-sounding voices, streaming PCM output |
-| **Parselmouth** | Voice analysis | Praat wrapper for pitch (F0), jitter, shimmer, HNR extraction |
-| **LiveKit Agents** | Real-time voice transport | Room-based communication, managed STT/LLM/TTS pipeline, persona-driven agents via `@function_tool` |
-| **WeasyPrint** | PDF reports | HTML-to-PDF with CSS support, standalone report templates |
-
----
-
-## What Is Implemented (Phase 1 MVP)
-
-```mermaid
-graph TB
-    subgraph "✅ DONE — Phase 1"
-        P1_1["Project setup + config"]
-        P1_2["Database models + Alembic"]
-        P1_3["4 screening instruments<br/>PHQ-9, GAD-7, PCL-5, ASRS"]
-        P1_4["LLM service (OpenRouter)"]
-        P1_5["Langfuse tracing"]
-        P1_6["Safety Monitor<br/>10 crisis regex patterns"]
-        P1_7["Screener Agent<br/>question-by-question flow"]
-        P1_8["Conversation Agent<br/>LLM-powered follow-up"]
-        P1_9["Orchestrator<br/>stateless, DB-backed"]
-        P1_10["Tool-calling<br/>triage, score context"]
-        P1_11["Web UI<br/>full assessment flow"]
-        P1_12["History + Settings pages"]
-        P1_13["DB persistence<br/>PostgreSQL + SessionRepository"]
-        P1_14["Docker Compose<br/>app + PostgreSQL"]
-        P1_15["Report generation<br/>PDF/HTML via WeasyPrint"]
-        P1_16["Voice I/O<br/>WebSocket + STT/TTS<br/>Local + Cloud providers"]
-        P1_17["Voice features<br/>Pitch, jitter, shimmer, HNR"]
-        P1_18["Voice answer mapping<br/>LLM natural language → scale values"]
-    end
-
-    subgraph "✅ DONE — Phase 2"
-        P2_2["RAG system<br/>pgvector embeddings + clinical knowledge"]
-    end
-
-    subgraph "✅ DONE — Phase 3"
-        P3_1["Admin panel<br/>session audit, safety events,<br/>stats, knowledge mgmt"]
-        P3_2["Local LLM fallback<br/>Ollama integration + auto-fallback"]
-        P3_3["Session memory<br/>cross-session context"]
-        P3_4["Data export<br/>JSON + CSV"]
-    end
-
-    subgraph "✅ DONE — Phase 4"
-        P4_1["Multi-user auth<br/>roles, OAuth, invites"]
-        P4_2["Scheduling + reminders"]
-        P4_3["Longitudinal tracking<br/>symptom trends over time"]
-        P4_4["Public deployment prep<br/>security headers, rate limiting"]
-    end
-
-    style P1_1 fill:#d4edda
-    style P1_2 fill:#d4edda
-    style P1_3 fill:#d4edda
-    style P1_4 fill:#d4edda
-    style P1_5 fill:#d4edda
-    style P1_6 fill:#d4edda
-    style P1_7 fill:#d4edda
-    style P1_8 fill:#d4edda
-    style P1_9 fill:#d4edda
-    style P1_10 fill:#d4edda
-    style P1_11 fill:#d4edda
-    style P1_12 fill:#d4edda
-    style P1_13 fill:#d4edda
-    style P1_14 fill:#d4edda
-    style P1_15 fill:#d4edda
-    style P1_16 fill:#d4edda
-    style P1_17 fill:#d4edda
-    style P1_18 fill:#d4edda
-    style P2_2 fill:#d4edda
-    style P3_1 fill:#d4edda
-    style P3_2 fill:#d4edda
-    style P3_3 fill:#d4edda
-    style P3_4 fill:#d4edda
-    style P4_1 fill:#d4edda
-    style P4_2 fill:#d4edda
-    style P4_3 fill:#d4edda
-    style P4_4 fill:#d4edda
-```
-
-### What works today (Phases 1-4)
-
-| Component | Status | Tests | Notes |
-|---|---|---|---|
-| Config (pydantic-settings) | ✅ | — | `.env` loading, all keys with defaults |
-| Pydantic schemas | ✅ | 4 | SessionState, ScreeningResult, etc |
-| SQLAlchemy ORM | ✅ | — | User, Session, Screening, Conversation, SafetyEvent, Knowledge, Visitor, VisitorLog tables |
-| Alembic migrations | ✅ | — | 4 migrations (initial, knowledge tables, admin_notes, visitor tracking) |
-| Instrument loader | ✅ | 5 | YAML parsing, scoring (sum + asrs_screener), flag rules |
-| PHQ-9, GAD-7, PCL-5, ASRS | ✅ | — | Complete YAML definitions |
-| LLM service | ✅ | 6 | OpenRouter + Ollama fallback via PydanticAI |
-| Langfuse tracing | ✅ | — | Init, trace creation (no-op when unconfigured) |
-| Safety Monitor | ✅ | 6 | 10 crisis patterns, case-insensitive, 4 resource links |
-| Screener Agent | ✅ | 5 | Question-by-question, scoring, progress tracking |
-| Conversation Agent | ✅ | 3 | System prompt builder with screening + RAG + memory context |
-| Orchestrator | ✅ | 7 | Stateless, DB-backed, replays answers to restore position |
-| Agent tools | ✅ | 7 | parse_instrument_selection, get_score_context, build_clinical_query |
-| SessionRepository | ✅ | 10 | Full async CRUD: create, load, save answers/screenings/messages/summary |
-| RAG system | ✅ | 15 | Markdown chunking, embeddings (OpenAI/Ollama), pgvector search |
-| Session memory | ✅ | 2 | Cross-session context injection into prompts |
-| Admin panel | ✅ | 5 | Session audit, safety dashboard, stats, knowledge mgmt |
-| Data export | ✅ | 2 | JSON + CSV export from admin panel |
-| Web UI (home) | ✅ | — | Calming design, SSR |
-| Web UI (assessment) | ✅ | — | Instrument selection → screening → conversation → summary |
-| Web UI (history) | ✅ | — | DB-backed session list + detail views |
-| Web UI (settings) | ✅ | — | Service status, LLM provider, RAG, voice config |
-| Docker Compose | ✅ | — | App + PostgreSQL, auto-migrations on startup |
-| Report generation | ✅ | 8 | PDF/HTML via WeasyPrint, download from summary + history |
-| Voice providers | ✅ | 6 | Local (faster-whisper + Piper) and cloud (Deepgram + ElevenLabs) |
-| Voice features | ✅ | 6 | Pitch, jitter, shimmer, HNR, intensity, speech rate via Parselmouth |
-| Voice answer mapper | ✅ | 4 | LLM-powered natural language → screening scale value mapping |
-| Voice WebSocket | ✅ | — | Full voice assessment flow (screening + conversation) |
-| Voice UI | ✅ | — | Dedicated voice page with mic capture, transcript, TTS playback |
-| Clinical knowledge base | ✅ | — | 12 markdown docs (clinical, psychoeducation, resources) |
-| Multi-user auth | ✅ | 10 | Roles (admin/clinician/patient), OAuth (Google/Apple), invites, rate limiting |
-| Scheduling | ✅ | 2 | Recurrence (weekly/biweekly/monthly), due tracking |
-| Longitudinal trends | ✅ | 1 | Score history, trend direction, Chart.js visualization |
-| Deployment prep | ✅ | 3 | Security headers, health endpoint, trusted hosts |
-| LiveKit agent | ✅ | — | Persona-driven entrypoint, STT/LLM/TTS pipeline, CLI |
-| LiveKit web UI | ✅ | 6 | Embedded voice session page, token endpoint, auth gating |
-| Receptionist persona | ✅ | 29 | 7 tools, fuzzy matching, directory, weather API, visitor tracking |
-| Assessor persona | ✅ | 26 | 9 tools, wraps existing orchestrator stack for LiveKit |
-| Capabilities system | ✅ | 21 | Voice analysis, mood inference (6 rules), trend tracking |
-| Visitor tracking | ✅ | — | Silent recognition by name/email, visit history, Visitor/VisitorLog models |
-| **Total tests** | | **201** | All passing, ruff clean |
-
-### Known limitations
-
-- **Voice answer mapping falls back to low confidence** when no LLM provider is available
-- **pgvector required** for RAG/knowledge features (gracefully skipped when unavailable)
-
----
-
-## Web UI — Assessment Flow
-
-```mermaid
-flowchart TB
-    HOME["/ Home<br/>Welcome + Begin Assessment"] --> ASSESS["/assess<br/>Select instruments<br/>or Full Checkup"]
-    ASSESS -->|POST /assess/start| SCREEN["/assess/screening<br/>Question + progress bar<br/>+ response buttons"]
-    ASSESS -->|POST /assess/start voice=1| VOICEUI["/assess/voice<br/>WebSocket voice<br/>screening + conversation"]
-    SCREEN -->|POST /assess/answer| SCREEN
-    SCREEN -->|all done| CHAT["/assess/conversation<br/>Chat with LLM<br/>+ safety checking"]
-    CHAT -->|POST /assess/chat| CHAT
-    CHAT -->|Skip to Summary| SUMMARY["/assess/summary<br/>Scores + severity<br/>+ recommendations"]
-    VOICEUI -->|Skip to Summary| SUMMARY
-    VOICEUI -->|Switch to text| SCREEN
-    SUMMARY --> HOME
-
-    HIST["/history<br/>Past sessions"] --> DETAIL["/history/{id}<br/>Session detail"]
-    SETTINGS["/settings<br/>Service status<br/>+ model config"]
-```
+The receptionist has no formal state machine — it follows an implicit flow driven by the LLM and tool calls.
 
 ---
 
@@ -575,188 +368,99 @@ flowchart TB
     MONITOR -->|pattern match| INTERRUPT["SafetyInterrupt"]
     INTERRUPT --> RESOURCES["Crisis resources:<br/>988 Lifeline<br/>Crisis Text Line<br/>IASP<br/>911"]
     INTERRUPT --> LOG["Log safety event"]
-    RESOURCES --> USER["Show to user immediately"]
 ```
 
-**10 regex patterns** covering:
-- Suicidal ideation ("kill myself", "end my life", "want to die", etc.)
-- Self-harm ("cutting myself", "self-harm")
-- Harm to others ("want to hurt someone")
-- Planning language ("plan to kill/die")
-
-All case-insensitive. The Safety Monitor runs on **every** user message in every state.
-
-**Why regex instead of LLM?**
-- Zero latency — critical for safety
-- Zero cost — no API calls
-- Deterministic — same input always triggers same response
-- Works offline — no dependency on external services
-- LLM-based safety detection planned as an additional layer in Phase 2
-
----
-
-## Dependency Graph
-
-```mermaid
-graph BT
-    CONFIG["config.py"] --> MAIN["main.py"]
-    CONFIG --> LLM["services/llm.py"]
-    CONFIG --> TRACE["services/tracing.py"]
-    CONFIG --> DB_SVC["services/database.py"]
-    CONFIG --> LK["livekit_agent.py"]
-    CONFIG --> REC["personas/receptionist.py"]
-
-    SCHEMAS["models/schemas.py"] --> SCREENER["agents/screener.py"]
-    SCHEMAS --> CONV["agents/conversation.py"]
-    SCHEMAS --> ORCH["agents/orchestrator.py"]
-    SCHEMAS --> TOOLS["agents/tools.py"]
-    SCHEMAS --> DB_MOD["models/db.py"]
-
-    INSTR["services/instruments.py"] --> SCREENER
-    INSTR --> TOOLS
-    INSTR --> ORCH
-
-    SCREENER --> ORCH
-    CONV --> ORCH
-    SAFETY["agents/safety.py"] --> ORCH
-    TOOLS --> ORCH
-
-    ORCH --> ASSESS_R["routes/assess.py"]
-    LLM --> ASSESS_R
-    INSTR --> ASSESS_R
-
-    CONFIG --> SETTINGS_R["routes/settings.py"]
-    INSTR --> SETTINGS_R
-
-    MAIN --> |include_router| ASSESS_R
-    MAIN --> |include_router| MAIN_R["routes/main.py"]
-    MAIN --> |include_router| HIST_R["routes/history.py"]
-    MAIN --> |include_router| SETTINGS_R
-
-    REC --> LK
-    LK --> |LiveKit SDK| LKCLOUD["LiveKit Cloud"]
-```
+10 regex patterns covering suicidal ideation, self-harm, and harm to others. Zero latency, zero cost, deterministic. Runs on every user message.
 
 ---
 
 ## Voice Transport Comparison
 
-> **For AI tools:** The platform supports three voice transport modes. Each persona can use any transport, but in practice the assessor uses WebSocket and the receptionist uses LiveKit.
+| Feature | Local WebSocket | Cloud WebSocket | LiveKit Rooms |
+|---|---|---|---|
+| STT | faster-whisper (CPU) | Deepgram Nova-2 | Deepgram Nova-3 |
+| LLM | OpenRouter / Ollama | OpenRouter / Ollama | GPT-4.1-mini (via LiveKit) |
+| TTS | Piper (local neural) | ElevenLabs | Cartesia Sonic-3 |
+| API keys needed | None (fully offline) | Deepgram + ElevenLabs | LiveKit only (free tier) |
+| Use case | Self-hosted, offline | Production web app | Real-time rooms, playground |
+| Latency | ~2s (CPU STT) | ~500ms | ~300ms |
 
-```mermaid
-graph TB
-    subgraph "Transport: Local WebSocket"
-        direction LR
-        L_STT["faster-whisper<br/>Local CPU inference"]
-        L_LLM["OpenRouter / Ollama<br/>via PydanticAI"]
-        L_TTS["Piper TTS<br/>Local neural TTS"]
-        L_STT --> L_LLM --> L_TTS
-    end
+---
 
-    subgraph "Transport: Cloud WebSocket"
-        direction LR
-        C_STT["Deepgram<br/>Nova-2 cloud STT"]
-        C_LLM["OpenRouter / Ollama<br/>via PydanticAI"]
-        C_TTS["ElevenLabs<br/>Cloud neural TTS"]
-        C_STT --> C_LLM --> C_TTS
-    end
+## Project Structure
 
-    subgraph "Transport: LiveKit Rooms"
-        direction LR
-        LK_STT["Deepgram<br/>Nova-3 via LiveKit"]
-        LK_LLM["OpenAI GPT-4.1-mini<br/>via LiveKit plugin"]
-        LK_TTS["Cartesia Sonic-3<br/>via LiveKit plugin"]
-        LK_STT --> LK_LLM --> LK_TTS
-    end
-
-    subgraph "Use Cases"
-        UC_LOCAL["Offline / self-hosted<br/>No API keys needed"]
-        UC_CLOUD["Production web app<br/>Best quality"]
-        UC_LK["Real-time rooms<br/>LiveKit Playground<br/>Deployable to cloud"]
-    end
-
-    L_STT -.-> UC_LOCAL
-    C_STT -.-> UC_CLOUD
-    LK_STT -.-> UC_LK
+```
+talker/
+  main.py              # FastAPI app, lifespan, middleware
+  livekit_agent.py      # LiveKit agent entrypoint, persona registry
+  config.py             # pydantic-settings (all env vars)
+  personas/
+    receptionist.py     # Shard receptionist: 7 tools, directory, visitor tracking
+    assessor.py         # Psychology assessor: 9 tools, screening orchestration
+  agents/               # Orchestrator, screener, conversation, safety, voice mapper
+  capabilities/
+    base.py             # Capability ABC
+    voice_analysis.py   # Mood inference from audio (6 rules)
+  services/
+    tracing.py          # Langfuse: init, traces, scores, prompt fetching
+    llm.py              # OpenRouter + Ollama model creation
+    database.py         # SQLAlchemy async session factory
+    session_repo.py     # Session CRUD
+    visitor_repo.py     # Visitor tracking (receptionist)
+    embeddings.py       # OpenAI / Ollama embeddings
+    rag.py              # pgvector retrieval
+    admin_repo.py       # Admin queries (stats, safety events)
+    export.py           # JSON + CSV export
+  models/
+    db.py               # SQLAlchemy ORM (User, Session, Visitor, etc.)
+    schemas.py          # Pydantic models
+    knowledge.py        # pgvector models
+  routes/
+    assess.py           # /assess/* — screening + conversation
+    voice.py            # /ws/voice — WebSocket voice
+    livekit.py          # /api/livekit/token, /api/feedback, /livekit/voice
+    admin.py            # /admin/* — dashboard, stats, LiveKit management
+    auth.py             # /auth/* — login, OAuth, registration
+    history.py          # /history/* — past sessions
+  instruments/          # YAML screening definitions (PHQ-9, GAD-7, PCL-5, ASRS)
+  knowledge/            # Clinical markdown docs for RAG
+  templates/            # Jinja2 (base, assess_*, livekit_voice, admin/*)
+  static/               # CSS + JS
+scripts/
+  seed_langfuse_prompts.py  # Create prompts in Langfuse
+tests/                  # 201 tests
+docs/
+  architecture.md       # This file
+  livekit-receptionist.md   # Dave's task — setup, design, how to run
+  livekit-architecture.md   # LiveKit integration deep dive
 ```
 
 ---
 
-## Screening Instruments — Current Coverage
+## Technology Choices
 
-```mermaid
-graph LR
-    subgraph "Implemented"
-        PHQ["PHQ-9<br/>Depression<br/>9 items, sum scoring<br/>5 severity tiers"]
-        GAD["GAD-7<br/>Anxiety<br/>7 items, sum scoring<br/>4 severity tiers"]
-        PCL["PCL-5<br/>PTSD<br/>20 items, sum scoring<br/>2 tiers + flags"]
-        ASRS["ASRS v1.1<br/>ADHD<br/>6 items, per-item thresholds"]
-    end
-
-    subgraph "Planned (add YAML only)"
-        MDQ["MDQ<br/>Bipolar"]
-        AUDIT["AUDIT-C<br/>Alcohol"]
-        ISI["ISI<br/>Insomnia"]
-        PSS["PSS-10<br/>Stress"]
-        PHQ15["PHQ-15<br/>Somatic"]
-        PC_PTSD["PC-PTSD-5<br/>PTSD Short"]
-    end
-
-    style PHQ fill:#d4edda
-    style GAD fill:#d4edda
-    style PCL fill:#d4edda
-    style ASRS fill:#d4edda
-```
+| Technology | Role | Why |
+|---|---|---|
+| **FastAPI** | Web framework | Async-native, Pydantic-first |
+| **Jinja2 SSR** | Templating | Calm UI, no JS framework complexity |
+| **PydanticAI** | Agent framework | Type-safe agents with tool calling |
+| **OpenRouter** | LLM provider | Single API for Claude, GPT, Llama; model switching per role |
+| **Ollama** | LLM fallback | Fully offline when no API key |
+| **LiveKit Agents** | Real-time voice | Room-based, managed STT/LLM/TTS, persona dispatch |
+| **Langfuse** | Observability | Tracing, prompt management, cost tracking, user feedback scores |
+| **PostgreSQL + pgvector** | Storage | JSONB flexibility + vector search for RAG |
+| **UV** | Package manager | Fast installs, Docker build speed |
+| **Parselmouth** | Voice analysis | Pitch, jitter, shimmer extraction for mood inference |
 
 ---
 
-## Phase 2-4 Roadmap
+## Key Design Decisions
 
-```mermaid
-gantt
-    title Talker Development Roadmap
-    dateFormat YYYY-MM
-    section Phase 1 (Done)
-        Core agents + Web UI          :done, p1, 2026-03, 2026-03
-    section Phase 2 (Done)
-        Voice I/O (WebSocket + STT/TTS) :done, p2a, 2026-03, 2026-03
-        Voice features (Parselmouth)  :done, p2f, 2026-03, 2026-03
-        RAG system (pgvector)         :done, p2b, 2026-03, 2026-03
-        DB persistence                :done, p2d, 2026-03, 2026-03
-        Report generation             :done, p2e, 2026-03, 2026-03
-    section Phase 3 (Done)
-        Admin panel                   :done, p3a, 2026-03, 2026-03
-        Local LLM (Ollama)            :done, p3b, 2026-03, 2026-03
-        Session memory                :done, p3c, 2026-03, 2026-03
-        Data export (JSON/CSV)        :done, p3d, 2026-03, 2026-03
-    section Phase 4 (Done)
-        Multi-user auth               :done, p4a, 2026-03, 2026-03
-        Scheduling + reminders        :done, p4b, 2026-03, 2026-03
-        Longitudinal tracking         :done, p4c, 2026-03, 2026-03
-        Deployment prep               :done, p4d, 2026-03, 2026-03
-```
-
----
-
-## Key Design Decisions — Why This Way
-
-### 1. Agent architecture over pipeline or state machine
-The hybrid nature of Talker (structured screening → open conversation) requires different behaviors at different times. An orchestrator + specialized agents handles this naturally. A pipeline would struggle with the transition from rigid questionnaires to free-form dialogue. A pure state machine would be too rigid for the conversation phase.
-
-### 2. YAML-driven instruments over code
-Clinical screening instruments are standardized — the questions, response options, and scoring are all defined by medical literature. Encoding this as data (YAML) means: no per-instrument code, easy to add new instruments, clinicians can review definitions directly, and the scoring engine is generic and well-tested.
-
-### 3. SSR (Jinja2) over SPA (React/Vue)
-For a mental health tool, the UI should feel calm and simple. Server-side rendering means: no JavaScript framework complexity, faster initial loads, works with poor connections, and the UI is a thin layer over the agent logic. If the tool grows to need real-time voice visualization, that's a targeted JS addition, not a full SPA rewrite.
-
-### 4. Safety via regex first, LLM second
-Safety detection must be: instant (no API latency), deterministic (same words always trigger), and free (no cost per check). Regex handles the obvious patterns. LLM-based nuanced detection (e.g., "I don't see the point anymore") will be added as an additional layer that enhances, not replaces, the regex baseline.
-
-### 5. OpenRouter over direct API
-Single integration point for multiple model providers. Can switch between Claude (quality), GPT (speed), or open models (cost) via config change. The screener uses a cheaper/faster model (Haiku) while conversation uses a more capable one (Sonnet) — different quality needs, same interface.
-
-### 6. Stateless Orchestrator with DB persistence
-The Orchestrator holds no mutable state — it loads SessionData from PostgreSQL per request and replays screener answers to restore position. This makes the app fully stateless and horizontally scalable. UUID session IDs prevent enumeration. JSONB columns store flexible data (instrument queues, raw answers) without schema migrations for every field change.
-
-### 7. Pydantic everywhere
-`pydantic-settings` for config, Pydantic `BaseModel` for all schemas, PydanticAI for agents, SQLAlchemy with mapped columns. One validation/serialization framework across the entire stack. No data crossing boundaries without type checking.
+1. **Persona as configuration, not code** — tools + prompt + capabilities. Adding a persona = a Python file
+2. **Langfuse prompts with fallback** — edit prompts without redeploy, but hardcoded defaults ensure the system works without Langfuse
+3. **Dynamic persona from room name** — `talker-{persona}-{uuid}` parsed at agent startup, no CLI args needed
+4. **Explicit agent dispatch** — token endpoint creates room + dispatches agent (not auto-dispatch), ensuring the right persona connects
+5. **User feedback linked to traces** — star ratings sent to Langfuse as scores, enabling prompt quality measurement per-persona
+6. **Safety via regex first** — zero latency, zero cost, deterministic crisis detection on every message
+7. **YAML-driven instruments** — adding a screening questionnaire = adding a YAML file, no code
+8. **Three voice tiers** — offline (local), cloud (Deepgram+ElevenLabs), real-time (LiveKit) — same agent logic, different transport

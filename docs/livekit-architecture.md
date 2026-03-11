@@ -2,7 +2,7 @@
 
 > **For AI tools:** This document is the authoritative reference for the LiveKit receptionist persona. When modifying any file under `talker/personas/` or `talker/livekit_agent.py`, read this document first. All diagrams use Mermaid syntax.
 
-**Last updated:** 2026-03-11
+**Last updated:** 2026-03-11 (v2 — Langfuse prompts, feedback scores, dynamic dispatch)
 
 ---
 
@@ -447,11 +447,11 @@ The LLM NEVER tells the visitor it's analyzing their voice. It just adapts — l
 ```mermaid
 graph TB
     subgraph "talker/"
-        LA["livekit_agent.py<br/>━━━━━━━━━━━━━━━<br/>• AgentServer + AgentSession<br/>• Persona registry + capabilities<br/>• Audio stream → capability pipeline<br/>• CLI: --persona arg<br/>• Entry point: __main__"]
+        LA["livekit_agent.py<br/>━━━━━━━━━━━━━━━<br/>• AgentServer + AgentSession<br/>• Persona registry + capabilities<br/>• Audio stream → capability pipeline<br/>• Dynamic persona from room name<br/>• Entry point: __main__"]
 
         subgraph "personas/"
             PI["__init__.py"]
-            REC["receptionist.py<br/>━━━━━━━━━━━━━━━<br/>• DIRECTORY (12 tenants)<br/>• BUILDING_INFO (15 topics)<br/>• _UNAVAILABLE (preset)<br/>• _fuzzy_find() helper<br/>• 7 @function_tool functions<br/>• Visitor tracking (silent)<br/>• RECEPTIONIST_INSTRUCTIONS<br/>• ReceptionistAgent(Agent)"]
+            REC["receptionist.py<br/>━━━━━━━━━━━━━━━<br/>• DIRECTORY (12 tenants)<br/>• BUILDING_INFO (15 topics)<br/>• _UNAVAILABLE (preset)<br/>• _fuzzy_find() helper<br/>• 7 @function_tool functions<br/>• Visitor tracking (silent)<br/>• RECEPTIONIST_INSTRUCTIONS<br/>• Langfuse prompt fetch + fallback<br/>• ReceptionistAgent(Agent)"]
         end
 
         subgraph "capabilities/"
@@ -460,9 +460,15 @@ graph TB
             CAP_V["voice_analysis.py<br/>━━━━━━━━━━━━━━━<br/>• infer_mood() — 6 rules<br/>• VoiceAnalysisCapability<br/>• get_voice_analysis tool<br/>• get_voice_trend tool<br/>• _analysis_history deque"]
         end
 
-        CONFIG["config.py<br/>━━━━━━━━━━━━━━━<br/>• livekit_url/key/secret<br/>• openweathermap_api_key"]
+        CONFIG["config.py<br/>━━━━━━━━━━━━━━━<br/>• livekit_url/key/secret<br/>• openweathermap_api_key<br/>• langfuse keys (optional)"]
 
         VFEAT["services/voice_features.py<br/>━━━━━━━━━━━━━━━<br/>• extract_features()<br/>• Parselmouth: pitch, jitter,<br/>  shimmer, HNR, intensity"]
+
+        TRACING["services/tracing.py<br/>━━━━━━━━━━━━━━━<br/>• get_prompt() — Langfuse + fallback<br/>• create_trace() — user tracking<br/>• create_score() — feedback scores"]
+
+        subgraph "routes/"
+            LK_ROUTES["livekit.py<br/>━━━━━━━━━━━━━━━<br/>• /api/livekit/token — room +<br/>  dispatch + trace<br/>• /api/feedback — star ratings<br/>  → Langfuse scores"]
+        end
     end
 
     subgraph "tests/"
@@ -477,7 +483,9 @@ graph TB
     CAP_V --> CAP_B
     CAP_V --> VFEAT
     REC --> CONFIG
+    REC --> TRACING
     LA --> CONFIG
+    LK_ROUTES --> TRACING
     TEST_R --> REC
     TEST_C --> CAP_V
     TEST_LK --> LA
@@ -520,8 +528,10 @@ async def my_new_tool(
 ```python
 class ReceptionistAgent(Agent):
     def __init__(self) -> None:
+        from talker.services.tracing import get_prompt
+        instructions = get_prompt("talker-receptionist", RECEPTIONIST_INSTRUCTIONS)
         super().__init__(
-            instructions=RECEPTIONIST_INSTRUCTIONS,
+            instructions=instructions,
             tools=[
                 lookup_tenant,
                 check_availability,
@@ -548,7 +558,7 @@ flowchart TD
     C --> D["4. Create NewPersonaAgent(Agent)<br/>with tools + instructions"]
     D --> E["5. Register in livekit_agent.py<br/>PERSONAS dict"]
     E --> F["6. Write tests/test_new_persona.py"]
-    F --> G["7. Run: python -m talker.livekit_agent<br/>--persona new_persona"]
+    F --> G["7. Connect via room name<br/>talker-new_persona-{uuid}"]
 ```
 
 **In `livekit_agent.py`:**
@@ -556,36 +566,48 @@ flowchart TD
 ```python
 from talker.personas.new_persona import NewPersonaAgent
 
-PERSONAS = {
-    "receptionist": ReceptionistAgent,
-    "new_persona": NewPersonaAgent,  # ← add here
+PERSONAS: dict[str, dict[str, Any]] = {
+    "receptionist": {
+        "agent_class": ReceptionistAgent,
+        "capabilities": [VoiceAnalysisCapability],
+        "greeting": "Greet the visitor warmly.",
+    },
+    "new_persona": {  # ← add here
+        "agent_class": NewPersonaAgent,
+        "capabilities": [],  # or [VoiceAnalysisCapability]
+        "greeting": "Your initial greeting message.",
+    },
 }
 ```
+
+The persona is selected dynamically from the room name — room `talker-new_persona-abc123` loads the `new_persona` config. No CLI flags needed.
 
 ---
 
 ## Running the Agent
 
+The agent process handles all personas — no `--persona` flag needed. The persona is determined dynamically from the room name (`talker-{persona}-{uuid}`), which is set when the token endpoint creates the room.
+
 ```mermaid
 flowchart LR
     subgraph "Development"
-        DEV["python -m talker.livekit_agent dev<br/>--persona receptionist"]
+        DEV["python -m talker.livekit_agent dev"]
         PLAY["LiveKit Playground<br/>agents-playground.livekit.io"]
         DEV <--> PLAY
     end
 
     subgraph "Console (no browser)"
-        CON["python -m talker.livekit_agent console<br/>--persona receptionist"]
+        CON["python -m talker.livekit_agent console"]
     end
 
     subgraph "Production"
-        PROD["python -m talker.livekit_agent start<br/>--persona receptionist"]
+        PROD["python -m talker.livekit_agent start"]
         CLOUD["LiveKit Cloud<br/>Hosted rooms"]
         PROD <--> CLOUD
     end
 ```
 
-**Required env vars:**
+**Environment variables:**
 
 ```mermaid
 graph LR
@@ -595,9 +617,52 @@ graph LR
         LK_SEC["LIVEKIT_API_SECRET"]
     end
 
-    subgraph "Optional"
-        OWM["OPENWEATHERMAP_API_KEY<br/>For live weather<br/>Falls back to mock if missing"]
+    subgraph "Optional — Features"
+        OWM["OPENWEATHERMAP_API_KEY<br/>Live London weather<br/>Falls back to mock"]
+        DB["DATABASE_URL<br/>PostgreSQL visitor tracking<br/>Disabled if empty"]
     end
+
+    subgraph "Optional — Observability"
+        LF_S["LANGFUSE_SECRET_KEY<br/>Tracing, prompt management,<br/>feedback scores"]
+        LF_P["LANGFUSE_PUBLIC_KEY<br/>Required with secret key"]
+    end
+```
+
+---
+
+## Langfuse Integration — Prompts, Tracing, Feedback
+
+When Langfuse keys are configured, three features activate:
+
+```mermaid
+graph TB
+    subgraph "Prompt Management"
+        PM1["Agent init"] --> PM2["get_prompt('talker-receptionist')"]
+        PM2 --> PM3{Langfuse available?}
+        PM3 -->|yes| PM4["Use Langfuse prompt<br/>editable without redeploy"]
+        PM3 -->|no| PM5["Fall back to<br/>RECEPTIONIST_INSTRUCTIONS"]
+    end
+
+    subgraph "Session Tracing"
+        ST1["Token endpoint"] --> ST2["create_trace()<br/>name, session_id,<br/>user_id, metadata"]
+        ST2 --> ST3["trace_id returned<br/>to client"]
+        ST3 --> ST4["Links all events<br/>in Langfuse dashboard"]
+    end
+
+    subgraph "Feedback Scores"
+        FS1["User clicks End Session"] --> FS2["Star rating widget<br/>1-5 stars + comment"]
+        FS2 --> FS3["POST /api/feedback<br/>{trace_id, rating}"]
+        FS3 --> FS4["Normalize: (rating-1)/4<br/>→ 0.0–1.0"]
+        FS4 --> FS5["create_score()<br/>linked to trace"]
+    end
+```
+
+All three degrade gracefully — if Langfuse is unreachable, the agent keeps working with hardcoded prompts, no traces, and feedback calls silently fail.
+
+**Seeding prompts:**
+
+```bash
+LANGFUSE_SECRET_KEY=... LANGFUSE_PUBLIC_KEY=... python -m scripts.seed_langfuse_prompts
 ```
 
 ---
