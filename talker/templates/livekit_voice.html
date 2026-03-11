@@ -256,7 +256,6 @@ async function connect() {
         });
 
         room.on(LivekitClient.RoomEvent.DataReceived, (payload, participant) => {
-            // Agent can send text data for transcript display
             try {
                 const msg = JSON.parse(new TextDecoder().decode(payload));
                 if (msg.type === "transcript" && msg.role === "assistant") {
@@ -266,6 +265,30 @@ async function connect() {
                 }
             } catch {
                 // Not JSON data, ignore
+            }
+        });
+
+        // Live transcription from agent STT/TTS pipeline
+        room.registerTextStreamHandler('lk.transcription', async (reader, participantInfo) => {
+            const isAgent = participantInfo.identity !== room.localParticipant.identity;
+            const role = isAgent ? "Assistant" : "You";
+            const cls = isAgent ? "assistant" : "user";
+
+            // Stream text as it arrives
+            const segmentId = reader.info.id;
+            let msgDiv = document.getElementById(`transcript-${segmentId}`);
+            if (!msgDiv) {
+                msgDiv = document.createElement("div");
+                msgDiv.id = `transcript-${segmentId}`;
+                msgDiv.className = `chat-message chat-${cls}`;
+                msgDiv.innerHTML = `<div class="chat-role">${escapeHtml(role)}</div><div class="chat-content"></div>`;
+                transcriptEl.appendChild(msgDiv);
+            }
+            const contentEl = msgDiv.querySelector(".chat-content");
+
+            for await (const chunk of reader) {
+                contentEl.textContent += chunk;
+                transcriptEl.scrollTop = transcriptEl.scrollHeight;
             }
         });
 

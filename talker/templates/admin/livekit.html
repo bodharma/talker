@@ -1,0 +1,67 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Admin — LiveKit{% endblock %}
+{% block admin_content %}
+<h1>LiveKit</h1>
+
+<!-- Connection Status -->
+<div class="card" style="padding:1rem;margin-bottom:1.5rem;">
+    <h3 style="margin-bottom:0.75rem;">Connection</h3>
+    <div style="display:flex;gap:2rem;flex-wrap:wrap;">
+        <div>
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{% if status.connected %}var(--accent){% else %}var(--danger){% endif %};margin-right:0.4rem;"></span>
+            <strong>{{ "Connected" if status.connected else "Not configured" }}</strong>
+        </div>
+        {% if status.connected %}
+        <div style="color:var(--text-muted);font-size:0.9rem;">
+            URL: <code>{{ status.url }}</code>
+        </div>
+        {% endif %}
+        {% if status.agent %}
+        <div style="color:var(--text-muted);font-size:0.9rem;">
+            Agent: <strong>{{ status.agent.name }}</strong> &middot; {{ status.agent.region }} &middot; ID: {{ status.agent.id }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if message %}
+<div class="card" style="padding:0.75rem;margin-bottom:1rem;background:var(--bg);border:1px solid var(--border);">
+    {{ message }}
+</div>
+{% endif %}
+
+<!-- Active Rooms -->
+<div class="card" style="overflow-x:auto;">
+    <h3 style="padding:0.75rem;">Active Rooms ({{ rooms|length }})</h3>
+    <table style="width:100%;border-collapse:collapse;">
+        <thead>
+            <tr style="border-bottom:2px solid var(--border);text-align:left;">
+                <th style="padding:0.5rem;">Room</th>
+                <th style="padding:0.5rem;">Persona</th>
+                <th style="padding:0.5rem;">Participants</th>
+                <th style="padding:0.5rem;">Duration</th>
+                <th style="padding:0.5rem;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rooms %}
+            <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:0.5rem;"><code>{{ r.name }}</code></td>
+                <td style="padding:0.5rem;">{{ r.persona }}</td>
+                <td style="padding:0.5rem;">{{ r.num_participants }}</td>
+                <td style="padding:0.5rem;">{{ r.duration }}</td>
+                <td style="padding:0.5rem;">
+                    <form method="post" action="/admin/livekit/close-room" style="display:inline;"
+                          onsubmit="return confirm('Close this room?')">
+                        <input type="hidden" name="room_name" value="{{ r.name }}">
+                        <button type="submit" class="btn btn-secondary" style="padding:0.25rem 0.75rem;font-size:0.85rem;">Close</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="padding:1rem;text-align:center;color:var(--text-muted);">No active rooms</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
